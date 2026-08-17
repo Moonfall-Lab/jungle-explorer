@@ -1,0 +1,258 @@
+.atmosphere {
+  background-image:
+    linear-gradient(180deg, rgba(2, 7, 4, .18), #050a07 92%),
+    linear-gradient(90deg, #04090566, transparent 30%, transparent 70%, #04090588),
+    url('/assets/visuals/jungle-command-bg.jpg');
+}
+
+html,
+body,
+#root {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}
+
+.expedition-shell {
+  display: flex;
+  flex-direction: column;
+  gap: clamp(5px, .75vh, 9px);
+  width: 100%;
+  height: 100dvh;
+  min-height: 0;
+  padding: clamp(8px, 1.2vh, 16px) clamp(12px, 2vw, 34px);
+}
+
+.expedition-header {
+  flex: 0 0 clamp(56px, 7.2vh, 78px);
+  min-height: 0;
+  margin: 0 auto;
+}
+
+.awakening-alert,
+.connection-alert,
+.round-guide,
+.command-deck,
+.system-details {
+  flex: 0 0 auto;
+  margin-top: 0;
+  margin-bottom: 0;
+}
+
+.awakening-alert,
+.connection-alert {
+  padding-block: clamp(5px, .65vh, 8px);
+}
+
+.round-guide {
+  padding-block: clamp(6px, .75vh, 9px);
+}
+
+.command-deck {
+  padding-block: clamp(8px, .9vh, 11px);
+}
+
+.command-deck .cards {
+  margin-top: clamp(6px, .75vh, 9px);
+}
+
+.command-deck .intent-card {
+  display: flex;
+  flex-direction: column;
+  height: clamp(112px, 12.5vh, 122px);
+  min-height: 0;
+  padding: 9px 12px;
+}
+
+.command-deck .intent-sigil {
+  flex: 0 0 auto;
+  width: 21px;
+  height: 21px;
+  margin-bottom: 5px;
+}
+
+.command-deck .intent-explore .intent-sigil::after {
+  inset: 0;
+}
+
+.command-deck .intent-verify .intent-sigil {
+  transform: rotate(45deg) scale(.72);
+  transform-origin: center;
+}
+
+.command-deck .intent-card strong {
+  flex: 0 0 auto;
+  line-height: 1.2;
+}
+
+.command-deck .intent-card small {
+  flex: 0 1 auto;
+  min-height: 0;
+  margin: 3px 0 5px;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.command-deck .intent-card dl {
+  flex: 0 0 auto;
+  margin-top: auto;
+}
+
+.command-deck .intent-card dl div {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 5px;
+}
+
+.command-deck .intent-card dd {
+  margin: 0;
+}
+
+.mission-grid {
+  flex: 1 1 auto;
+  min-height: 0;
+  margin-top: 0;
+  overflow: hidden;
+}
+
+.map-column {
+  display: grid;
+  grid-template-rows: minmax(0, 1fr) auto;
+  min-height: 0;
+}
+
+.map-panel {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+  padding: clamp(9px, 1.1vh, 15px);
+}
+
+.map-panel .grid-stage {
+  flex: 1 1 auto;
+  min-height: 0;
+  margin-top: clamp(6px, .8vh, 11px);
+  aspect-ratio: auto;
+}
+
+.map-helpbar {
+  min-height: 32px;
+  margin-top: 5px;
+  padding-block: 5px;
+}
+
+.intel-column {
+  min-height: 0;
+  grid-template-rows: auto minmax(0, 1fr);
+  align-content: stretch;
+}
+
+.scan-panel {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.scan-panel .model-stage,
+.scan-panel .scan-empty {
+  flex: 1 1 auto;
+  min-height: 0;
+  height: auto;
+}
+
+.scan-panel .asset-archive {
+  flex: 0 0 auto;
+}
+
+.system-details > summary {
+  min-height: 32px;
+  padding-block: 6px;
+}
+
+.system-details[open] {
+  position: fixed;
+  z-index: 40;
+  right: clamp(12px, 2vw, 34px);
+  bottom: clamp(8px, 1.2vh, 16px);
+  left: clamp(12px, 2vw, 34px);
+  max-height: min(46vh, 430px);
+  background: rgba(5, 12, 8, .98);
+  box-shadow: 0 -18px 70px rgba(0, 0, 0, .68);
+}
+
+.system-details[open] .lower-deck {
+  max-height: calc(min(46vh, 430px) - 42px);
+  overflow: auto;
+}
+
+@media (min-width: 761px) and (max-width: 1120px) {
+  .mission-grid {
+    grid-template-columns: minmax(0, 1.7fr) minmax(300px, .72fr);
+  }
+
+  .intel-column {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 760px) {
+  .expedition-shell {
+    padding: 8px 9px;
+  }
+
+  .expedition-header {
+    flex-basis: auto;
+    margin-bottom: 0;
+  }
+
+  .round-guide {
+    gap: 7px;
+  }
+
+  .round-guide-copy > p:last-child,
+  .map-helpbar small {
+    display: none;
+  }
+
+  .command-deck .cards {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .command-deck .intent-card {
+    height: clamp(88px, 11.5vh, 106px);
+    min-height: 0;
+    padding: 8px 10px;
+  }
+
+  .command-deck .intent-card small,
+  .command-deck .intent-card .intent-sigil {
+    display: none;
+  }
+
+  .intent-card dl {
+    margin-top: 7px;
+  }
+
+  .mission-grid {
+    display: block;
+  }
+
+  .map-column {
+    height: 100%;
+  }
+
+  .intel-column,
+  .system-details {
+    display: none;
+  }
+
+  .map-helpbar {
+    grid-template-columns: auto 1fr;
+  }
+}
