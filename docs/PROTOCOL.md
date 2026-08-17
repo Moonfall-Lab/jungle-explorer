@@ -2,7 +2,7 @@
 
 All grid coordinates are zero-based `{ row, col }`. UI labels are one-based. Distance is expressed in logical cells, angles are always 90 degrees, timestamps are ISO 8601 UTC, and confidence is `[0, 1]`.
 
-## Game Server → rover
+## Game Server → rover bridge
 
 ```json
 {
@@ -19,6 +19,8 @@ All grid coordinates are zero-based `{ row, col }`. UI labels are one-based. Dis
 
 The rover must deduplicate `planId`, stop on malformed commands and expose an emergency-stop path.
 
+The Moonfall Rover SDK itself accepts a compact sequence rather than this envelope. The local bridge converts the commands above to `F2 L F3`, calls `RoverSDK.execute`, and correlates the result with `planId`. See [`ROVER_SDK_INTEGRATION.md`](ROVER_SDK_INTEGRATION.md).
+
 ## Rover → Game Server
 
 ```json
@@ -31,9 +33,9 @@ The rover must deduplicate `planId`, stop on malformed commands and expose an em
 }
 ```
 
-This message asks vision to adjudicate; it does not update the logical position.
+This transport-level message is optional when using the Python SDK directly. The authoritative logical position comes from `MissionResult.position.cell`, never from the planned target.
 
-## Vision → Game Server
+## Rover SDK/vision adapter → Game Server
 
 ```json
 {
@@ -46,7 +48,7 @@ This message asks vision to adjudicate; it does not update the logical position.
 }
 ```
 
-The MVP acceptance threshold is 0.60. A production installation should require multiple stationary frames and a calibration version.
+The current SDK already aggregates three stationary localization frames. The bridge accepts only `in_grid: true` with a non-null cell, maps `A-1..E-8` to the game's zero-based 5×8 coordinates, and records the remaining fields as telemetry. The generic API retains confidence for alternative vision adapters.
 
 ## rPPG → Game Server
 

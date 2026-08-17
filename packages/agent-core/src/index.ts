@@ -80,10 +80,10 @@ function distanceTo(position: Position, target: Position): number {
 }
 
 function progressTarget(state: GameState): Position {
-  if (state.rover.carryingRelic) return state.exit;
+  if (state.rover.carryingRelic) return state.start;
   const hinted = state.pathHints.at(-1);
   if (hinted) return hinted;
-  return state.exit;
+  return { row: state.start.row, col: state.config.columns - 1 };
 }
 
 function explanationFor(
@@ -94,7 +94,7 @@ function explanationFor(
 ): string {
   const tension = state.agent.teamTension;
   const coordinate = `第 ${target.row + 1} 行第 ${target.col + 1} 列`;
-  if (state.phase === 'AWAKENED') return `丛林已经苏醒。我会压缩试探，沿风险 ${(risk * 100).toFixed(0)}% 的路线向 EXIT 撤离。`;
+  if (state.phase === 'AWAKENED') return `丛林已经苏醒。我会压缩试探，沿风险 ${(risk * 100).toFixed(0)}% 的路线返回起点。`;
   if (intent === 'CAUTIOUS') return `我接受谨慎意图。${coordinate} 的估计风险为 ${(risk * 100).toFixed(0)}%，是近邻中更稳妥的落点。`;
   if (intent === 'EXPLORE') return `藤蔓遮挡视线，但${coordinate}能带来更多未知信息；我愿意承担 ${(risk * 100).toFixed(0)}% 的估计风险。`;
   if (intent === 'VERIFY') return `我只做一次正交试探，前往${coordinate}验证当前危险约束，避免扩大误差。`;

@@ -1,5 +1,5 @@
 import type { AgentPersona, GameState } from '@jungle/shared-types';
-import { advanceClock, createGame } from '@jungle/game-core';
+import { STANDARD_CONFIG, advanceClock, createGame } from '@jungle/game-core';
 
 interface StoredGame {
   state: GameState;
@@ -9,8 +9,15 @@ interface StoredGame {
 export class GameStore {
   private active?: StoredGame;
 
-  create(seed?: string, persona: AgentPersona = 'CAUTIOUS'): GameState {
-    const state = createGame(seed, persona);
+  create(
+    seed?: string,
+    persona: AgentPersona = 'CAUTIOUS',
+    mode: 'standard' | 'demo' = 'standard',
+  ): GameState {
+    const state = createGame(seed, persona, {
+      ...STANDARD_CONFIG,
+      victoryMode: mode === 'demo' ? 'RELIC_ONLY' : 'RETURN_TO_BASE',
+    });
     this.active = { state, lastTick: Date.now() };
     return state;
   }

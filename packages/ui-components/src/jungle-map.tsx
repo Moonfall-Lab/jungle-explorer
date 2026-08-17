@@ -10,9 +10,8 @@ import { positionKey, samePosition } from '@jungle/shared-types';
 const resourceGlyph: Record<ResourceType, string> = {
   WATER: '💧',
   RARE_FLOWER: '✦',
-  SUPPLY_CACHE: '▣',
-  RELIC_CLUE: '◇',
-  LOST_RELIC: '◆',
+  RELIC_MARKER: '◇',
+  RELIC: '◆',
 };
 
 function truthAt(truth: TileTruth[] | undefined, position: Position): TileTruth | undefined {
@@ -35,7 +34,7 @@ export function JungleMap({
           <p className="eyebrow">5 × 8 LOGIC GRID</p>
           <h2>Jungle Map</h2>
         </div>
-        <div className="map-legend"><span>● Rover</span><span>▥ EXIT</span><span>◆ Relic</span></div>
+        <div className="map-legend"><span>● Rover</span><span>▥ BASE</span><span>◆ Relic</span></div>
       </div>
       <div
         className="jungle-grid"
@@ -44,7 +43,6 @@ export function JungleMap({
         {state.knowledge.map((tile) => {
           const current = samePosition(tile.position, state.rover.position);
           const isStart = samePosition(tile.position, state.start);
-          const isExit = samePosition(tile.position, state.exit);
           const truth = truthAt(observerState?.truth, tile.position);
           const risk = risks.get(positionKey(tile.position));
           const visibleResource = tile.resource ?? (observer ? truth?.resource : undefined);
@@ -67,7 +65,6 @@ export function JungleMap({
                 <span className={`danger-count danger-${tile.nearbyHazards ?? 0}`}>{tile.nearbyHazards || '·'}</span>
               ) : null}
               {isStart ? <span className="edge-label">BASE</span> : null}
-              {isExit ? <span className="edge-label">EXIT</span> : null}
               {observer && risk !== undefined ? <span className="risk-label">{Math.round(risk * 100)}%</span> : null}
             </div>
           );

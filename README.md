@@ -8,9 +8,9 @@ Jungle Explorer 是一款 2–6 人、单局 15–25 分钟的协作探索游戏
 
 ## 当前可用能力
 
-- 5×8 确定性种子地图，隐藏危险、资源、3 个遗迹线索和 Lost Relic；
+- 5×8 确定性种子地图，隐藏危险、资源、2 个遗迹标记和 2 个遗迹；
 - 权威 Game Server，严格分离服务器真相、玩家知识和 Observer Mode；
-- 扫雷式八邻域数字提示、HP、资源、两线索解锁、遗迹夺取与 EXIT 胜负判定；
+- 扫雷式八邻域数字提示、3 HP、资源、遗迹夺取与返回 BASE 胜负判定；
 - Jungle Awakens：夺取后计时以 1.8 倍流逝、部分安全格重回未知、新增动态危险、Agent 切换撤离策略；
 - 风险图推理、A* 路径规划、人格权重和四类意图卡策略；
 - 整数格移动及 90° 转弯任务序列；
@@ -51,11 +51,12 @@ ROVER_MODE=hardware npm run dev:server
 
 ## 游戏目标
 
-1. **探索**：在 3 个遗迹线索中找到至少 2 个；
-2. **夺取**：进入 Lost Relic 格并取得遗迹，触发 Jungle Awakens；
-3. **撤离**：携带遗迹抵达地图另一侧 EXIT，并至少保留 1 HP。
+正式规则提供两种开局前选择的模式：
 
-HP 归零、20 分钟耗尽，或无法带遗迹撤离都会失败。开始位置在左侧 BASE，EXIT 在右侧；这套规则采用需求中后出现、也更完整的三阶段胜利条件。
+1. **标准模式**：找到地图中 2 个遗迹的任意 1 个，触发 Jungle Awakens，携带遗迹回到起点 BASE，并至少保留 1 HP；
+2. **短模式**：找到并取得任意 1 个遗迹时立即胜利，用于时间有限或撤离效果尚不稳定的演示。
+
+HP 归零、20 分钟耗尽，或遗迹掉落后无法恢复都会失败。运动途中经过的格子不结算，只有 Rover SDK 在运动结束后返回的最终格有效。完整且权威的规则见 [正式规则书](docs/GAME_RULES.md)。
 
 每轮固定为：
 
@@ -105,13 +106,13 @@ services/
   rppg/              生理信号的置信度门控边界
 simulations/
   virtual-rover/     与真实车使用同一任务语义
-firmware/            ESP32 PlatformIO 骨架
+firmware/            早期接口骨架；当前固件由独立 Rover SDK 仓库维护
 hardware/            BOM、安全与集成说明
 configs/             游戏模式和 Agent 人格参数
 docs/                规则、架构与协议细节
 ```
 
-核心约束是：**Agent 的目标位置不是事实，电机计时位置也不是事实；摄像头确认的最终格子才会写入 GameState。**
+核心约束是：**Agent 的目标位置不是事实，运动途中经过的格子也不结算；Moonfall Rover SDK 在停车后返回的最终格才会写入 GameState。** SDK、定位服务和硬件调试界面由独立的 [moonfall-rover-control](https://github.com/Moonfall-Lab/moonfall-rover-control) 仓库维护，接入映射见 [Rover SDK 集成契约](docs/ROVER_SDK_INTEGRATION.md)。
 
 ## API 概览
 
@@ -160,4 +161,4 @@ rPPG 服务同理，建议使用独立虚拟环境并运行在 `8102`。
 5. 增加持久化与会话鉴权，隔离 Observer 接口；
 6. 在规则 Agent 稳定后，再将 LLM 限定在意图理解和叙事生成，不让它成为唯一决策器。
 
-详细设计见 [架构说明](docs/ARCHITECTURE.md)、[设备协议](docs/PROTOCOL.md) 和 [硬件集成](hardware/README.md)。
+详细设计见 [正式规则书](docs/GAME_RULES.md)、[架构说明](docs/ARCHITECTURE.md)、[Rover SDK 集成契约](docs/ROVER_SDK_INTEGRATION.md)、[设备协议](docs/PROTOCOL.md) 和 [硬件集成](hardware/README.md)。

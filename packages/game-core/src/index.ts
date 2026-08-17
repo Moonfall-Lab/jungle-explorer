@@ -20,13 +20,13 @@ export const STANDARD_CONFIG: GameConfig = {
   columns: 8,
   durationMs: 20 * 60 * 1000,
   startingHp: 3,
-  maxHp: 4,
-  hazards: 9,
-  relicClues: 3,
-  requiredClues: 2,
+  maxHp: 3,
+  hazards: 5,
+  relics: 2,
+  relicMarkers: 2,
   waterSources: 3,
   rareFlowers: 2,
-  supplyCaches: 2,
+  victoryMode: 'RETURN_TO_BASE',
   awakeningTimeMultiplier: 1.8,
 };
 
@@ -84,13 +84,12 @@ export function createGame(
   config = { ...config };
   const random = createRandom(seed);
   const start = { row: Math.floor(config.rows / 2), col: 0 };
-  const exit = { row: Math.floor(config.rows / 2), col: config.columns - 1 };
   const truth: TileTruth[] = allPositions(config).map((position) => ({
     position,
     terrain: terrains[Math.floor(random() * terrains.length)] ?? 'RAINFOREST',
   }));
   const available = shuffle(
-    truth.filter((tile) => !samePosition(tile.position, start) && !samePosition(tile.position, exit)),
+    truth.filter((tile) => !samePosition(tile.position, start)),
     random,
   );
   let cursor = 0;
@@ -102,9 +101,8 @@ export function createGame(
   const resources: ResourceType[] = [
     ...Array<ResourceType>(config.waterSources).fill('WATER'),
     ...Array<ResourceType>(config.rareFlowers).fill('RARE_FLOWER'),
-    ...Array<ResourceType>(config.supplyCaches).fill('SUPPLY_CACHE'),
-    ...Array<ResourceType>(config.relicClues).fill('RELIC_CLUE'),
-    'LOST_RELIC',
+    ...Array<ResourceType>(config.relicMarkers).fill('RELIC_MARKER'),
+    ...Array<ResourceType>(config.relics).fill('RELIC'),
   ];
   for (const resource of resources) {
     while (available[cursor]?.hazard) cursor += 1;
@@ -127,7 +125,6 @@ export function createGame(
     updatedAt: timestamp,
     elapsedMs: 0,
     start,
-    exit,
     rover: {
       id: 'rover-01',
       position: start,
@@ -139,7 +136,7 @@ export function createGame(
     },
     truth,
     knowledge,
-    cluesFound: 0,
+    relicMarkersFound: 0,
     pathHints: [],
     round: 0,
     agent: {
@@ -199,9 +196,7 @@ function nearestSafeTarget(state: GameState, resources: ResourceType[]): Positio
 
 export function grantCorrectHint(state: GameState): GameState {
   if (state.phase === 'WON' || state.phase === 'LOST') return state;
-  const resources: ResourceType[] =
-    state.cluesFound < state.config.requiredClues ? ['RELIC_CLUE'] : ['LOST_RELIC'];
-  const target = nearestSafeTarget(state, resources);
+  const target = state.rover.carryingRelic ? state.start : nearestSafeTarget(state, ['RELIC']);
   if (!target) return state;
   const path = findPath(state.rover.position, target, {
     rows: state.config.rows,
@@ -230,8 +225,7 @@ function triggerAwakening(state: GameState): void {
         !tile.resource &&
         !getKnowledge(state, tile.position)?.revealed &&
         !samePosition(tile.position, state.rover.position) &&
-        !samePosition(tile.position, state.start) &&
-        !samePosition(tile.position, state.exit),
+        !samePosition(tile.position, state.start),
     ),
     random,
   ).slice(0, 2);
@@ -242,7 +236,6 @@ function triggerAwakening(state: GameState): void {
       tile.revealed &&
       !samePosition(tile.position, state.rover.position) &&
       !samePosition(tile.position, state.start) &&
-      !samePosition(tile.position, state.exit) &&
       !tile.hazard,
   );
   for (const tile of forgettable.filter((_, index) => index % 3 === 0)) {
@@ -272,10 +265,10 @@ function dropRelic(state: GameState): void {
     pushEvent(state, 'GAME_LOST', '重大事件将遗迹卷入裂隙，周围没有可恢复的落点。');
     return;
   }
-  dropTarget.resource = 'LOST_RELIC';
+  dropTarget.resource = 'RELIC';
   const knowledge = getKnowledge(state, dropTarget.position);
   if (knowledge) {
-    knowledge.resource = 'LOST_RELIC';
+    knowledge.resource = 'RELIC';
     knowledge.consumed = false;
   }
   state.pathHints.push(dropTarget.position);
@@ -284,6 +277,25 @@ function dropRelic(state: GameState): void {
     'RESOURCE_FOUND',
     `重大事件令遗迹掉落在第 ${dropTarget.position.row + 1} 行第 ${dropTarget.position.col + 1} 列，必须重新取得。`,
   );
+}
+
+function revealLocalMap(state: GameState, center: Position): void {
+  const localTiles = neighbors(center, {
+    rows: state.config.rows,
+    columns: state.config.columns,
+    allowDiagonal: true,
+  });
+  for (const position of localTiles) {
+    const truth = getTruth(state, position);
+    const knowledge = getKnowledge(state, position);
+    if (!truth || !knowledge) continue;
+    knowledge.revealed = true;
+    knowledge.forgotten = false;
+    knowledge.terrain = truth.terrain;
+    knowledge.nearbyHazards = countNearbyHazards(state, position);
+    if (truth.hazard) knowledge.hazard = truth.hazard;
+    if (truth.resource) knowledge.resource = truth.resource;
+  }
 }
 
 function resolveResource(state: GameState, knowledge: TileKnowledge, resource: ResourceType): void {
@@ -297,25 +309,26 @@ function resolveResource(state: GameState, knowledge: TileKnowledge, resource: R
     knowledge.consumed = true;
     pushEvent(state, 'RESOURCE_FOUND', '发现稀有花朵，一条绝对正确的路径提示已解锁。');
     grantCorrectHint(state);
-  } else if (resource === 'SUPPLY_CACHE') {
+  } else if (resource === 'RELIC_MARKER') {
     knowledge.consumed = true;
-    pushEvent(state, 'RESOURCE_FOUND', '发现采集物资，可补充一张额外探险卡。');
-  } else if (resource === 'RELIC_CLUE') {
-    knowledge.consumed = true;
-    state.cluesFound += 1;
+    state.relicMarkersFound += 1;
+    revealLocalMap(state, knowledge.position);
     pushEvent(
       state,
       'RESOURCE_FOUND',
-      `找到遗迹线索（${state.cluesFound}/${state.config.requiredClues}）。`,
+      `找到遗迹标记（${state.relicMarkersFound}/${state.config.relicMarkers}），周围八格的局部地图已公开。`,
     );
-  } else if (resource === 'LOST_RELIC') {
-    if (state.cluesFound >= state.config.requiredClues && !state.rover.carryingRelic) {
+  } else if (resource === 'RELIC') {
+    if (!state.rover.carryingRelic) {
       knowledge.consumed = true;
       state.rover.carryingRelic = true;
-      pushEvent(state, 'RESOURCE_FOUND', 'Lost Relic 已取得，立即撤离！');
-      triggerAwakening(state);
-    } else if (!state.rover.carryingRelic) {
-      pushEvent(state, 'RESOURCE_FOUND', '祭台结构仍被封印，需要至少两条遗迹线索。');
+      pushEvent(state, 'RESOURCE_FOUND', '遗迹已取得。');
+      if (state.config.victoryMode === 'RELIC_ONLY') {
+        state.phase = 'WON';
+        pushEvent(state, 'GAME_WON', '探险队找到并取得任意一个遗迹，短模式胜利！');
+      } else {
+        triggerAwakening(state);
+      }
     }
   }
 }
@@ -394,11 +407,11 @@ export function checkEndConditions(state: GameState): GameState {
     pushEvent(state, 'GAME_LOST', '倒计时归零，丛林封锁了撤离路线。');
   } else if (
     state.rover.carryingRelic &&
-    samePosition(state.rover.position, state.exit) &&
+    samePosition(state.rover.position, state.start) &&
     state.rover.hp >= 1
   ) {
     state.phase = 'WON';
-    pushEvent(state, 'GAME_WON', '探险队携带 Lost Relic 抵达 EXIT，成功撤离！');
+    pushEvent(state, 'GAME_WON', '探险队携带遗迹回到起点，成功撤离！');
   }
   return state;
 }

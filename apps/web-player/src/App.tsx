@@ -37,10 +37,10 @@ export function App() {
     finally { setBusy(false); }
   };
 
-  const reset = async () => {
+  const reset = async (mode: 'standard' | 'demo') => {
     setBusy(true);
     try {
-      setState(await jsonRequest<PublicGameState>('/api/games', { method: 'POST', body: JSON.stringify({ seed: `expedition-${Date.now()}`, persona: 'CAUTIOUS' }) }));
+      setState(await jsonRequest<PublicGameState>('/api/games', { method: 'POST', body: JSON.stringify({ seed: `expedition-${Date.now()}`, persona: 'CAUTIOUS', mode }) }));
     } finally { setBusy(false); }
   };
 
@@ -56,7 +56,10 @@ export function App() {
         <section className="panel command-bay">
           <div className="panel-title-row"><div><p className="eyebrow">COMMAND BAY</p><h3>选择团队意图，而不是下达方向</h3></div><span className="stance">ROUND {state.round + 1}</span></div>
           <div className="cards">{cards.map((card) => <button className="intent-card" disabled={busy || ended} key={card.id} onClick={() => void play(card.id)}><strong>{card.id} · {card.title}</strong><small>{card.copy}</small></button>)}</div>
-          <div className="toolbar"><button className="secondary-button" disabled={busy} onClick={() => void reset()}>开始新远征</button></div>
+          <div className="toolbar">
+            <button className="secondary-button" disabled={busy} onClick={() => void reset('standard')}>新建标准局</button>
+            <button className="secondary-button" disabled={busy} onClick={() => void reset('demo')}>新建短模式</button>
+          </div>
         </section>
         <EventFeed state={state} />
       </div>

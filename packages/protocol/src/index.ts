@@ -8,6 +8,7 @@ export const positionSchema = z.object({
 export const createGameSchema = z.object({
   seed: z.string().trim().min(1).max(80).optional(),
   persona: z.enum(['CAUTIOUS', 'DAREDEVIL', 'FORAGER', 'INSTINCT']).default('CAUTIOUS'),
+  mode: z.enum(['standard', 'demo']).default('standard'),
 });
 
 export const playIntentSchema = z.object({

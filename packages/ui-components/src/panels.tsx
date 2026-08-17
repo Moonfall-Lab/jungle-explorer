@@ -64,8 +64,8 @@ export function MissionHeader({ state, label }: { state: PublicGameState; label:
     <header className="mission-header">
       <div><p className="eyebrow">MOONFALL LAB · {label}</p><h1>JUNGLE <span>EXPLORER</span></h1></div>
       <div className="mission-stats">
-        <div><small>PHASE</small><strong>{state.phase}</strong></div>
-        <div><small>CLUES</small><strong>{state.cluesFound} / {state.config.requiredClues}</strong></div>
+        <div><small>MODE · PHASE</small><strong>{state.config.victoryMode === 'RELIC_ONLY' ? 'SHORT' : state.phase}</strong></div>
+        <div><small>MARKERS</small><strong>{state.relicMarkersFound} / {state.config.relicMarkers}</strong></div>
         <div className={state.remainingMs < 120000 ? 'urgent' : ''}><small>TIME</small><strong>{time(state.remainingMs)}</strong></div>
       </div>
     </header>

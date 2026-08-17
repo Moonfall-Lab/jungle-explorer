@@ -30,7 +30,7 @@ Rules and path selection are deterministic and testable. A future LLM adapter ma
 - **Memory**: revealed tiles, forgotten tiles, exact triggered hazards, resources and path hints.
 - **Solver**: local eight-neighbor constraints and a bounded probability estimate.
 - **Navigation**: risk-weighted Manhattan A*; diagonal intent candidates become physical cardinal paths.
-- **Tactical policy**: persona, intent, information value, resources, exit progress and smoothed tension.
+- **Tactical policy**: persona, intent, information value, resources, return-to-base progress and smoothed tension.
 - **Narration**: player-facing rationale and hazard/resource events.
 
 ## 4. Ports and adapters

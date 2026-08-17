@@ -1,5 +1,5 @@
 {
-  "id": "standard",
+  "id": "demo",
   "rows": 5,
   "columns": 8,
   "durationMinutes": 20,
@@ -10,6 +10,6 @@
   "relicMarkers": 2,
   "waterSources": 3,
   "rareFlowers": 2,
-  "victoryMode": "RETURN_TO_BASE",
+  "victoryMode": "RELIC_ONLY",
   "awakeningTimeMultiplier": 1.8
 }

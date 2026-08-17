@@ -7,9 +7,8 @@ export type HazardType = (typeof HAZARD_TYPES)[number];
 export const RESOURCE_TYPES = [
   'WATER',
   'RARE_FLOWER',
-  'SUPPLY_CACHE',
-  'RELIC_CLUE',
-  'LOST_RELIC',
+  'RELIC_MARKER',
+  'RELIC',
 ] as const;
 export type ResourceType = (typeof RESOURCE_TYPES)[number];
 
@@ -17,6 +16,7 @@ export type Terrain = 'GRASSLAND' | 'RAINFOREST' | 'SWAMP' | 'CLEARING';
 export type GamePhase = 'EXPLORING' | 'AWAKENED' | 'WON' | 'LOST';
 export type Heading = 'NORTH' | 'EAST' | 'SOUTH' | 'WEST';
 export type AgentPersona = 'CAUTIOUS' | 'DAREDEVIL' | 'FORAGER' | 'INSTINCT';
+export type VictoryMode = 'RETURN_TO_BASE' | 'RELIC_ONLY';
 
 export interface Position {
   row: number;
@@ -110,11 +110,11 @@ export interface GameConfig {
   startingHp: number;
   maxHp: number;
   hazards: number;
-  relicClues: number;
-  requiredClues: number;
+  relics: number;
+  relicMarkers: number;
   waterSources: number;
   rareFlowers: number;
-  supplyCaches: number;
+  victoryMode: VictoryMode;
   awakeningTimeMultiplier: number;
 }
 
@@ -127,11 +127,10 @@ export interface GameState {
   updatedAt: string;
   elapsedMs: number;
   start: Position;
-  exit: Position;
   rover: RoverState;
   truth: TileTruth[];
   knowledge: TileKnowledge[];
-  cluesFound: number;
+  relicMarkersFound: number;
   pathHints: Position[];
   round: number;
   pendingPlan?: ActionPlan;

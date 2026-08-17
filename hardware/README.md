@@ -1,6 +1,8 @@
 # Hardware integration
 
-The physical rover executes only integer-cell forward moves and 90° turns. Motor timing is an estimate; the overhead AprilTag camera is the referee and sends the final grid position to the Game Server.
+The active rover motion, AprilTag localizer and hardware debug UI live in the independent [Moonfall Rover SDK](https://github.com/Moonfall-Lab/moonfall-rover-control) repository. This repository does not duplicate that implementation. The Jungle Explorer adapter contract is documented in [`docs/ROVER_SDK_INTEGRATION.md`](../docs/ROVER_SDK_INTEGRATION.md).
+
+The physical rover executes only integer-cell forward moves and 90° turns. Motor timing is an estimate; `RoverSDK.execute()` waits for the post-movement AprilTag localization and returns the final grid position used by the Game Server.
 
 Safety requirements:
 

@@ -47,7 +47,7 @@ export async function buildServer(options: { logger?: boolean; roverMode?: 'virt
 
   server.post('/api/games', async (request, reply) => {
     const input = createGameSchema.parse(request.body ?? {});
-    const state = store.create(input.seed, input.persona);
+    const state = store.create(input.seed, input.persona, input.mode);
     return reply.status(201).send(toPublicState(state));
   });
 
