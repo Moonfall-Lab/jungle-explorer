@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import type { PublicGameState, ResourceType } from '@jungle/shared-types';
+import type { HazardType, PublicGameState, ResourceType } from '@jungle/shared-types';
 import { positionKey, samePosition } from '@jungle/shared-types';
 
 const API = import.meta.env.VITE_API_URL ?? 'http://localhost:3000';
@@ -9,6 +9,16 @@ const resourceGlyph: Record<ResourceType, string> = {
   RARE_FLOWER: '✦',
   RELIC_MARKER: '◇',
   RELIC: '◆',
+};
+const itemArtwork: Partial<Record<HazardType | ResourceType, string>> = {
+  ROCKFALL: '/assets/map-items/rockfall.webp',
+  SNAKE_NEST: '/assets/map-items/snake-nest.webp',
+  VINE_TRAP: '/assets/map-items/vine-trap.webp',
+  UNKNOWN_EVENT: '/assets/map-items/vine-trap.webp',
+  WATER: '/assets/map-items/water.webp',
+  RARE_FLOWER: '/assets/map-items/rare-flower.webp',
+  RELIC_MARKER: '/assets/map-items/relic-marker.webp',
+  RELIC: '/assets/map-items/relic-marker.webp',
 };
 
 const time = (milliseconds: number): string => {
@@ -56,19 +66,23 @@ export function App() {
           const tile = knowledge.get(positionKey(position));
           const current = state ? samePosition(position, state.rover.position) : false;
           const base = state ? samePosition(position, state.start) : position.row === 2 && position.col === 0;
+          const visibleItem = tile?.hazard ?? tile?.resource;
+          const artwork = tile?.revealed && visibleItem ? itemArtwork[visibleItem] : undefined;
           const classes = [
             'physical-cell',
             tile?.revealed ? 'revealed' : 'unknown',
             tile?.forgotten ? 'forgotten' : '',
             tile?.hazard ? 'hazard' : '',
+            tile?.consumed ? 'consumed' : '',
             current ? 'current' : '',
           ].filter(Boolean).join(' ');
           return (
             <div className={classes} key={positionKey(position)}>
               <span className="coordinate">{String.fromCharCode(65 + position.col)}-{position.row + 1}</span>
+              {artwork ? <img className="item-artwork" src={artwork} alt="" aria-hidden="true" /> : null}
               {current ? <span className="rover">●</span> : null}
-              {!current && tile?.hazard ? <span className="hazard-mark">!</span> : null}
-              {!current && tile?.resource ? <span className="resource">{resourceGlyph[tile.resource]}</span> : null}
+              {!current && tile?.hazard && !artwork ? <span className="hazard-mark">!</span> : null}
+              {!current && tile?.resource && !artwork ? <span className="resource">{resourceGlyph[tile.resource]}</span> : null}
               {!current && tile?.revealed && !tile.hazard && !tile.resource ? <span className="count">{tile.nearbyHazards ?? 0}</span> : null}
               {base ? <span className="base">BASE</span> : null}
             </div>

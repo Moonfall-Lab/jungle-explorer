@@ -1,7 +1,9 @@
-import { useCallback, useEffect, useState, type CSSProperties } from 'react';
-import type { AgentPersona, IntentCard, PublicGameState } from '@jungle/shared-types';
-import { BioHud, EventFeed, JungleMap, MissionHeader, RoverHud } from '@jungle/ui-components';
+import { useCallback, useEffect, useMemo, useState, type CSSProperties } from 'react';
+import type { AgentPersona, HazardType, IntentCard, Position, PublicGameState, ResourceType } from '@jungle/shared-types';
+import { samePosition } from '@jungle/shared-types';
+import { BioHud, EventFeed, JungleMap, RoverHud, time } from '@jungle/ui-components';
 import { CardScanner, type CardScanResult } from './CardScanner';
+import { ModelViewer, type ScanAsset } from './ModelViewer.js';
 
 const API = import.meta.env.VITE_API_URL ?? 'http://localhost:3000';
 const cards: Array<{ id: IntentCard; title: string; image: string }> = [
@@ -16,6 +18,38 @@ const personas: Record<AgentPersona, { name: string; title: string; description:
   DAREDEVIL: { name: '开路者', title: '丛林冒险家', description: '偏好高风险路径，愿意用更大胆的探索换取速度与新发现。', credo: '越过危险，才能发现新的道路。' },
   FORAGER: { name: '寻迹者', title: '资源采集者', description: '优先寻找水源与花朵，并在规划路线时更重视沿途资源。', credo: '每一份资源，都可能改变远征。' },
   INSTINCT: { name: '逐风者', title: '直觉型智能体', description: '基于附近的局部信息快速决策，及时选择当前最有利的方向。', credo: '信息有限，也要果断前行。' },
+};
+
+const itemNames: Partial<Record<HazardType | ResourceType, string>> = {
+  ROCKFALL: '落石区', SNAKE_NEST: '毒蛇巢穴', VINE_TRAP: '藤蔓陷阱', UNKNOWN_EVENT: '未知危险',
+  WATER: '清洁水源', RARE_FLOWER: '稀有花朵', RELIC_MARKER: '遗迹标记', RELIC: '远古遗迹',
+};
+
+const scanAssets: ScanAsset[] = [
+  { id: 'ROCKFALL', title: '落石区', subtitle: '危险样本 HZ-01', url: '/assets/models/rockfall.glb', textureUrl: '/assets/textures/rockfall.jpg', tone: 'warning' },
+  { id: 'SNAKE_NEST', title: '毒蛇巢穴', subtitle: '危险样本 HZ-02', url: '/assets/models/snake-nest.glb', textureUrl: '/assets/textures/snake-nest.jpg', tone: 'warning' },
+  { id: 'VINE_TRAP', title: '断裂藤蔓', subtitle: '危险样本 HZ-03', url: '/assets/models/vine-trap.glb', textureUrl: '/assets/textures/vine-trap.jpg', tone: 'warning' },
+  { id: 'WATER', title: '清洁水源', subtitle: '补给样本 RS-01', url: '/assets/models/water.glb', textureUrl: '/assets/textures/water.jpg', tone: 'safe' },
+  { id: 'RARE_FLOWER', title: '稀有花朵', subtitle: '线索样本 RS-02', url: '/assets/models/rare-flower.glb', textureUrl: '/assets/textures/rare-flower.jpg', tone: 'safe' },
+  { id: 'RELIC_MARKER', title: '遗迹标记', subtitle: '遗迹样本 AR-01', url: '/assets/models/relic-marker.glb', textureUrl: '/assets/textures/relic-marker.jpg', tone: 'relic' },
+];
+
+const mapArtwork: Partial<Record<HazardType | ResourceType, string>> = {
+  ROCKFALL: '/assets/map-items/rockfall.webp',
+  SNAKE_NEST: '/assets/map-items/snake-nest.webp',
+  VINE_TRAP: '/assets/map-items/vine-trap.webp',
+  UNKNOWN_EVENT: '/assets/map-items/vine-trap.webp',
+  WATER: '/assets/map-items/water.webp',
+  RARE_FLOWER: '/assets/map-items/rare-flower.webp',
+  RELIC_MARKER: '/assets/map-items/relic-marker.webp',
+  RELIC: '/assets/map-items/relic-marker.webp',
+};
+
+const assetForTile = (hazard?: HazardType, resource?: ResourceType): ScanAsset | undefined => {
+  const id = hazard ?? resource;
+  if (id === 'UNKNOWN_EVENT') return scanAssets.find((asset) => asset.id === 'VINE_TRAP');
+  if (id === 'RELIC') return scanAssets.find((asset) => asset.id === 'RELIC_MARKER');
+  return scanAssets.find((asset) => asset.id === id);
 };
 
 function AgentPersonaPanel({
@@ -159,6 +193,8 @@ export function App() {
   const [playedEffect, setPlayedEffect] = useState<{ id: number; card: IntentCard; origin: { x: number; y: number } }>();
   const [scanArrival, setScanArrival] = useState<{ id: number; card: IntentCard }>();
   const [cardOutcome, setCardOutcome] = useState<{ id: number; card: IntentCard; status: 'execute' | 'return'; label: string }>();
+  const [selected, setSelected] = useState<Position>();
+  const [scanAsset, setScanAsset] = useState<ScanAsset>();
   const [error, setError] = useState('');
   const refresh = useCallback(async () => {
     try { setState(await jsonRequest<PublicGameState>('/api/games/current')); setError(''); }
@@ -166,6 +202,13 @@ export function App() {
   }, []);
 
   useEffect(() => { void refresh(); const timer = window.setInterval(() => void refresh(), 1000); return () => window.clearInterval(timer); }, [refresh]);
+
+  useEffect(() => {
+    if (!state) return;
+    setSelected(state.rover.position);
+    const tile = state.knowledge.find((candidate) => samePosition(candidate.position, state.rover.position));
+    setScanAsset(assetForTile(tile?.hazard, tile?.resource));
+  }, [state?.round]);
 
   const play = async (card: IntentCard, origin?: { x: number; y: number }) => {
     if (!state || busy || state.phase === 'WON' || state.phase === 'LOST'
@@ -223,14 +266,40 @@ export function App() {
     } finally { setBusy(false); }
   };
 
+  const inspectTile = (position: Position) => {
+    setSelected(position);
+    const tile = state?.knowledge.find((candidate) => samePosition(candidate.position, position));
+    setScanAsset(tile?.revealed ? assetForTile(tile.hazard, tile.resource) : undefined);
+  };
+
+  const mission = useMemo(() => {
+    if (!state) return '';
+    if (state.phase === 'WON') return '远征完成';
+    if (state.phase === 'LOST') return '远征终止';
+    if (state.phase === 'AWAKENED') return '携带遗迹返回 BASE';
+    return '定位遗迹并保持探索机器人完整';
+  }, [state]);
+
   if (!state) return <main className={error ? 'error-screen' : 'loading'}>{error || '正在校准丛林地图…'}</main>;
   const ended = state.phase === 'WON' || state.phase === 'LOST';
   const turnLocked = busy || ended || state.pendingPlan?.status === 'PENDING' || state.pendingPlan?.status === 'DISPATCHED';
   const effectCard = playedEffect ? cards.find((card) => card.id === playedEffect.card) : undefined;
   const arrivalCard = scanArrival ? cards.find((card) => card.id === scanArrival.card) : undefined;
   const outcomeCard = cardOutcome ? cards.find((card) => card.id === cardOutcome.card) : undefined;
+  const awaiting = state.pendingPlan?.status === 'PENDING' || state.pendingPlan?.status === 'DISPATCHED';
+  const observing = state.pendingPlan?.status === 'CONFIRMED' && Boolean(cardOutcome);
+  const selectedTile = selected ? state.knowledge.find((tile) => samePosition(tile.position, selected)) : undefined;
+  const selectedItem = selectedTile?.hazard ?? selectedTile?.resource;
+  const selectedMessage = !selected
+    ? '点击任意格子查看情报；探索机器人的移动目标由 Agent 自动决定。'
+    : !selectedTile?.revealed
+      ? `第 ${selected.row + 1} 行第 ${selected.col + 1} 列尚未探索；这里不能直接指定移动。`
+      : selectedItem
+        ? `第 ${selected.row + 1} 行第 ${selected.col + 1} 列发现${itemNames[selectedItem] ?? '现场目标'}。`
+        : `第 ${selected.row + 1} 行第 ${selected.col + 1} 列已探索；周围八格有 ${selectedTile.nearbyHazards ?? 0} 个危险。`;
   return (
-    <main className="app-shell player-console">
+    <main className={`expedition-shell merged-player phase-${state.phase.toLowerCase()}`}>
+      <div className="atmosphere" aria-hidden="true" />
       {playedEffect && effectCard && (
         <div
           key={playedEffect.id}
@@ -250,38 +319,53 @@ export function App() {
           <img src={outcomeCard.image} alt="" /><b>{cardOutcome.label}</b>
         </div>
       )}
-      <MissionHeader state={state} label="PLAYER CONSOLE" />
-      {error ? <p className="error-screen">{error}</p> : null}
-      <div className="player-battle-layout">
-        <aside className="player-side-rail player-rover-rail">
-          <RoverHud state={state} />
-          <RoverConnectionPanel />
-        </aside>
-        <JungleMap state={state} />
-        <aside className="player-side-rail player-intel-rail">
-          <AgentPersonaPanel state={state} disabled={turnLocked} onChange={(persona) => void changePersona(persona)} />
-          <BioHud state={state} />
-        </aside>
-      </div>
-      <section className="player-control-deck">
-        <section className="panel command-bay">
-          <div className="panel-title-row command-title-row">
-            <div><p className="eyebrow">CARD PLAY</p><h3>{controlTab === 'cards' ? '请打出卡牌' : '摄像头识别'}</h3></div>
-            <div className="command-head-actions">
-              <div className="control-mode-switch">
-                <button className={controlTab === 'cards' ? 'active' : ''} onClick={() => setControlTab('cards')}>行动控制</button>
-                <button className={controlTab === 'scanner' ? 'active' : ''} onClick={() => setControlTab('scanner')}>摄像头识别</button>
-              </div>
-              <div className="toolbar">
-                <button className="secondary-button" disabled={turnLocked} onClick={() => void reset('standard')}>新建标准局</button>
-                <button className="secondary-button" disabled={turnLocked} onClick={() => void reset('demo')}>新建短模式</button>
-              </div>
-              <span className="stance">ROUND {state.round + 1}</span>
+
+      <header className="expedition-header">
+        <div className="brand-lockup">
+          <div className="brand-mark"><span>J</span><i /></div>
+          <div><p>MOONFALL LAB · EXPEDITION 07</p><h1>JUNGLE <em>EXPLORER</em></h1></div>
+        </div>
+        <div className="mission-objective"><span>当前任务</span><strong>{mission}</strong></div>
+        <div className="header-metrics">
+          <div><span>PHASE</span><strong>{state.phase}</strong></div>
+          <div><span>ROUND</span><strong>{String(state.round + 1).padStart(2, '0')}</strong></div>
+          <div className={state.remainingMs < 120000 ? 'urgent' : ''}><span>TIME</span><strong>{time(state.remainingMs)}</strong></div>
+        </div>
+      </header>
+
+      {state.phase === 'AWAKENED' ? <div className="awakening-alert"><b>JUNGLE AWAKENED</b><span>丛林正在重构路径 · 时间流速 ×1.8 · 立即撤离</span></div> : null}
+      {error ? <div className="connection-alert">连接中断 · {error}</div> : null}
+
+      <section className="round-guide panel" aria-label="本回合操作引导">
+        <div className="round-guide-copy">
+          <p className="eyebrow">ROUND {String(state.round + 1).padStart(2, '0')} · {awaiting ? 'IN MOTION' : observing ? 'RESULT' : 'YOUR DECISION'}</p>
+          <h2>{awaiting ? 'Agent 正在移动探索机器人' : observing ? '行动完成，请观察地图变化' : '请打出一张探索卡牌'}</h2>
+          <p>{awaiting ? '正在规划并执行路线。' : observing ? '新位置与现场情报已经更新。' : '你决定行动意图，具体路线和移动由 Agent 完成。'}</p>
+        </div>
+        <ol className="turn-steps">
+          <li className={!awaiting && !observing ? 'active' : 'done'}><span>1</span><b>打出卡牌</b></li>
+          <li className={awaiting ? 'active' : observing ? 'done' : ''}><span>2</span><b>机器人移动</b></li>
+          <li className={observing ? 'active' : ''}><span>3</span><b>观察结果</b></li>
+        </ol>
+      </section>
+
+      <section className="command-deck panel merged-command-deck">
+        <div className="command-heading">
+          <div><p className="eyebrow">CARD PLAY · 选择后立即执行</p><h2>{controlTab === 'cards' ? '请打出卡牌' : '使用摄像头识别卡牌'}</h2></div>
+          <div className="command-head-actions">
+            <div className="control-mode-switch">
+              <button className={controlTab === 'cards' ? 'active' : ''} onClick={() => setControlTab('cards')}>实体卡牌</button>
+              <button className={controlTab === 'scanner' ? 'active' : ''} onClick={() => setControlTab('scanner')}>摄像头识别</button>
+            </div>
+            <div className="toolbar compact-toolbar">
+              <button disabled={turnLocked} onClick={() => void reset('standard')}>新建标准局</button>
+              <button disabled={turnLocked} onClick={() => void reset('demo')}>新建短模式</button>
             </div>
           </div>
-          {controlTab === 'cards' ? <div className="cards">{cards.map((card) => (
+        </div>
+        {controlTab === 'cards' ? <div className="cards physical-cards">{cards.map((card) => (
             <button
-              className={`intent-card ${playingCard === card.id ? 'selected' : ''}`}
+              className={`intent-card physical-card ${playingCard === card.id ? 'selected' : ''}`}
               disabled={turnLocked}
               key={card.id}
               onClick={(event) => {
@@ -292,12 +376,43 @@ export function App() {
               title={card.title}
             >
               <img src={card.image} alt={`${card.title}卡面`} draggable={false} />
+              <span>{card.title}</span>
             </button>
-          ))}</div> : <CardScanner onScan={handleScan} disabled={turnLocked} feedback={scanFeedback} />}
-        </section>
-        <EventFeed state={state} />
+        ))}</div> : <CardScanner onScan={handleScan} disabled={turnLocked} feedback={scanFeedback} />}
       </section>
-      <footer className="player-footer"><span>MOONFALL LAB</span><b>JUNGLE EXPLORER</b><span>REAL ROVER · DIGITAL TWIN</span></footer>
+
+      <section className="mission-grid">
+        <div className="map-column">
+          <JungleMap itemArtwork={mapArtwork} onSelect={inspectTile} state={state} {...(selected ? { selected } : {})} />
+          <div className="map-helpbar" role="status"><span>查看模式</span><p>{selectedMessage}</p><small>地图数字表示周围八格的危险数量</small></div>
+          {awaiting ? <div className="movement-ribbon"><i /><div><b>EXPLORER IN MOTION</b><span>等待最终定位裁决</span></div><strong>{busy ? 'PLANNING' : state.pendingPlan?.commands.map((command) => command.action === 'FORWARD' ? `F${command.cells}` : command.action === 'TURN_LEFT' ? 'L' : 'R').join('  ')}</strong></div> : null}
+        </div>
+
+        <aside className="intel-column merged-intel-column">
+          <AgentPersonaPanel state={state} disabled={turnLocked} onChange={(persona) => void changePersona(persona)} />
+          <section className="scan-panel panel">
+            <div className="section-heading"><div><p className="eyebrow">SELECTED CELL · 现场情报</p><h2>当前目标扫描</h2></div><span className="live-dot">LIVE</span></div>
+            {scanAsset ? <ModelViewer asset={scanAsset} /> : <div className="scan-empty" role="status"><i aria-hidden="true" /><strong>暂无可扫描对象</strong><span>该格尚未探索，或没有发现危险与资源。</span></div>}
+            <details className="asset-archive">
+              <summary>查看全部现场样本</summary>
+              <div className="asset-switcher" aria-label="3D 样本选择">
+                {scanAssets.map((asset) => <button className={scanAsset?.id === asset.id ? 'active' : ''} key={asset.id} onClick={() => setScanAsset(asset)} title={asset.title} type="button"><span>{asset.title.slice(0, 1)}</span><small>{asset.title}</small></button>)}
+              </div>
+            </details>
+          </section>
+        </aside>
+      </section>
+
+      <details className="system-details">
+        <summary><span>探索机器人与详细信息</span><small>连接设置 · 机器人状态 · 生理数据 · 行动日志</small></summary>
+        <section className="lower-deck merged-lower-deck">
+          <div className="telemetry-stack"><RoverHud state={state} /><BioHud state={state} /></div>
+          <EventFeed state={state} />
+          <RoverConnectionPanel />
+        </section>
+      </details>
+
+      {ended ? <div className={`mission-result result-${state.phase.toLowerCase()}`}><div className="result-card"><p>EXPEDITION STATUS</p><h2>{state.phase === 'WON' ? '遗迹成功回收' : '远征行动终止'}</h2><span>{state.events.at(-1)?.message}</span><div><b>{state.round}</b><small>完成回合</small><b>{state.rover.hp}/{state.rover.maxHp}</b><small>剩余完整度</small></div><button onClick={() => void reset('standard')} type="button">开始新的标准远征</button></div></div> : null}
     </main>
   );
 }

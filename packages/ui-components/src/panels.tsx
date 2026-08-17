@@ -19,15 +19,26 @@ export function RoverHud({ state }: { state: PublicGameState }) {
 }
 
 export function AgentMind({ state }: { state: PublicGameState }) {
+  const recommendation = state.phase === 'AWAKENED' || state.agent.riskAtRover >= .35
+    ? state.phase === 'AWAKENED' ? '安全撤离' : '安全前进'
+    : { CAUTIOUS: '安全前进', DAREDEVIL: '扩大探索', FORAGER: '获取提示', INSTINCT: '检查周围' }[state.agent.persona];
+  const riskPercent = Math.round(state.agent.riskAtRover * 100);
+  const riskLevel = riskPercent < 25 ? 'low' : riskPercent < 55 ? 'medium' : 'high';
+  const plainReason = state.phase === 'AWAKENED'
+    ? '你已经取得遗迹，现在最重要的是安全返回 BASE。'
+    : riskPercent >= 35
+      ? '当前位置风险偏高，建议先避开危险，不要继续冒进。'
+      : `当前路线危险度约为 ${riskPercent}%，可以按推荐策略继续探索。`;
   return (
     <section className="panel compact-panel agent-mind">
       <div className="panel-title-row">
-        <div><p className="eyebrow">AGENT MIND</p><h3>{state.agent.persona}</h3></div>
-        <span className={`stance ${state.agent.stance.toLowerCase()}`}>{state.agent.stance}</span>
+        <div><p className="eyebrow">AGENT 建议</p><h3>推荐：{recommendation}</h3></div>
+        <span className={`risk-badge risk-${riskLevel}`}>{riskPercent}% 风险</span>
       </div>
-      <p className="agent-copy">“{state.agent.explanation}”</p>
+      <p className="agent-copy">{plainReason}</p>
       <div className="risk-meter"><span style={{ width: `${state.agent.riskAtRover * 100}%` }} /></div>
-      <small>Selected route risk · {Math.round(state.agent.riskAtRover * 100)}%</small>
+      <small>绿色更安全，红色风险更高</small>
+      <details className="agent-reasoning"><summary>查看 Agent 的详细判断</summary><p>“{state.agent.explanation}”</p></details>
     </section>
   );
 }
