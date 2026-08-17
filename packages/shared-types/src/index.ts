@@ -75,6 +75,7 @@ export interface GameEvent {
     | 'GAME_STARTED'
     | 'INTENT_PLAYED'
     | 'AGENT_PLANNED'
+    | 'ROVER_FAILED'
     | 'ROVER_LOCALIZED'
     | 'TILE_REVEALED'
     | 'HAZARD_TRIGGERED'

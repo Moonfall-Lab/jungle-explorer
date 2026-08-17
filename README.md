@@ -17,6 +17,7 @@ Jungle Explorer 是一款 2–6 人、单局 15–25 分钟的协作探索游戏
 - 虚拟车自动闭环，以及等待 AprilTag 定位裁决的硬件模式；
 - 玩家控制台、Observer 上帝视角、Rover/Agent/Bio HUD 和事件日志；
 - Vision、rPPG、ESP32 固件边界、硬件 BOM 与自动化测试骨架。
+- Moonfall Rover SDK Bridge、幂等任务回调、急停边界和 27 寸实体地图全屏视图。
 
 > rPPG 只提供游戏情境输入，不是医疗测量，也不会直接改变胜负。
 
@@ -34,10 +35,13 @@ npm run dev:server
 ```bash
 npm run dev:player
 npm run dev:observer
+npm run dev:board
 ```
 
 - 玩家端：[http://localhost:5173](http://localhost:5173)
 - 观察者端：[http://localhost:5174](http://localhost:5174)
+- 27 寸实体地图：[http://localhost:5175](http://localhost:5175)
+- 实体地图校准：[http://localhost:5175/?calibrate=1](http://localhost:5175/?calibrate=1)
 - Server 健康检查：[http://localhost:3000/health](http://localhost:3000/health)
 
 默认 `ROVER_MODE=virtual`，Agent 计划会立即由虚拟车完成并回传定位。接入实体车时：
@@ -92,6 +96,7 @@ flowchart LR
 ```text
 apps/
   game-server/       权威状态、API、硬件/虚拟模式编排
+  web-board/         27 寸显示器的 5×8 全屏实体地图
   web-player/        玩家地图、HUD、意图卡
   web-observer/      真相地图、危险概率、调试视角
 packages/
@@ -102,6 +107,7 @@ packages/
   agent-core/        Memory/Solver/Policy 风险决策
   ui-components/     两个 Web 端共享组件
 services/
+  rover-bridge/      幂等调用 Python RoverSDK 并回传最终格
   vision-tracking/   AprilTag 像素到网格的裁判边界
   rppg/              生理信号的置信度门控边界
 simulations/
@@ -161,4 +167,4 @@ rPPG 服务同理，建议使用独立虚拟环境并运行在 `8102`。
 5. 增加持久化与会话鉴权，隔离 Observer 接口；
 6. 在规则 Agent 稳定后，再将 LLM 限定在意图理解和叙事生成，不让它成为唯一决策器。
 
-详细设计见 [正式规则书](docs/GAME_RULES.md)、[架构说明](docs/ARCHITECTURE.md)、[Rover SDK 集成契约](docs/ROVER_SDK_INTEGRATION.md)、[设备协议](docs/PROTOCOL.md) 和 [硬件集成](hardware/README.md)。
+详细设计见 [正式规则书](docs/GAME_RULES.md)、[架构说明](docs/ARCHITECTURE.md)、[SDK 核对报告](docs/SDK_AUDIT.md)、[Rover SDK 集成契约](docs/ROVER_SDK_INTEGRATION.md)、[27 寸实体地图](docs/PHYSICAL_BOARD.md)、[设备协议](docs/PROTOCOL.md) 和 [硬件集成](hardware/README.md)。

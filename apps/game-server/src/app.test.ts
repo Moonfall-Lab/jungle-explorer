@@ -35,7 +35,33 @@ describe('game server', () => {
       url: `/api/games/${game.id}/intents`,
       payload: { card: 'CAUTIOUS' },
     });
-    expect(turn.json().state.round).toBe(0);
-    expect(turn.json().plan.status).toBe('DISPATCHED');
+    const planned = turn.json();
+    expect(planned.state.round).toBe(0);
+    expect(planned.plan.status).toBe('DISPATCHED');
+
+    const callbackPayload = {
+      planId: planned.plan.id,
+      gameId: game.id,
+      status: 'COMPLETED',
+      sequence: 'F1',
+      position: planned.plan.target,
+      heading: 'EAST',
+      sdkTelemetry: { sample_count: 3 },
+    };
+    const localized = await server.inject({
+      method: 'POST',
+      url: `/api/games/${game.id}/rover-results`,
+      payload: callbackPayload,
+    });
+    expect(localized.statusCode).toBe(200);
+    expect(localized.json().round).toBe(1);
+    expect(localized.json().pendingPlan.status).toBe('CONFIRMED');
+
+    const duplicate = await server.inject({
+      method: 'POST',
+      url: `/api/games/${game.id}/rover-results`,
+      payload: callbackPayload,
+    });
+    expect(duplicate.json().round).toBe(1);
   });
 });

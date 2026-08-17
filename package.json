@@ -12,9 +12,11 @@
   "scripts": {
     "dev": "npm run dev --workspace @jungle/game-server",
     "dev:server": "npm run dev --workspace @jungle/game-server",
+    "dev:board": "npm run dev --workspace @jungle/web-board",
     "dev:player": "npm run dev --workspace @jungle/web-player",
     "dev:observer": "npm run dev --workspace @jungle/web-observer",
-    "test": "vitest run",
+    "test": "vitest run && npm run test:python",
+    "test:python": "python3 -m unittest discover -s services/rover-bridge/tests -v",
     "test:watch": "vitest",
     "typecheck": "tsc -b",
     "build": "npm run build --workspaces --if-present",

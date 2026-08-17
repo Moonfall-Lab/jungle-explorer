@@ -1,0 +1,18 @@
+{
+  "id": "display-27-landscape",
+  "physicalWidthCm": 59.6,
+  "physicalHeightCm": 33.4,
+  "logicalRows": 5,
+  "logicalColumns": 8,
+  "targetCellCm": 6.68,
+  "boardWidthCm": 53.44,
+  "boardHeightCm": 33.4,
+  "horizontalMarginCm": 3.08,
+  "verticalMarginCm": 0,
+  "roverWidthCm": {
+    "minimum": 5,
+    "maximum": 6
+  },
+  "minimumTotalCellClearanceCm": 0.68,
+  "notes": "Use measured active display area as final authority; run the board calibration screen after installation."
+}

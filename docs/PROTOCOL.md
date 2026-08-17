@@ -48,7 +48,9 @@ This transport-level message is optional when using the Python SDK directly. The
 }
 ```
 
-The current SDK already aggregates three stationary localization frames. The bridge accepts only `in_grid: true` with a non-null cell, maps `A-1..E-8` to the game's zero-based 5×8 coordinates, and records the remaining fields as telemetry. The generic API retains confidence for alternative vision adapters.
+The current SDK already aggregates three stationary localization frames. The bridge accepts only `in_grid: true` with a non-null cell, converts the selected SDK grid mapping to the game's zero-based 5×8 coordinates, and records the remaining fields as telemetry. The generic API retains confidence for alternative vision adapters.
+
+For the final landscape board the corrected SDK range is `A-1..H-5`. Bridge completion is posted to `POST /api/games/:id/rover-results` with `planId`; duplicate callbacks are idempotent and do not advance the round twice. SDK `0.1.0` orientation details are tracked in [`SDK_AUDIT.md`](SDK_AUDIT.md).
 
 ## rPPG → Game Server
 

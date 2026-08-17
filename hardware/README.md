@@ -2,6 +2,8 @@
 
 The active rover motion, AprilTag localizer and hardware debug UI live in the independent [Moonfall Rover SDK](https://github.com/Moonfall-Lab/moonfall-rover-control) repository. This repository does not duplicate that implementation. The Jungle Explorer adapter contract is documented in [`docs/ROVER_SDK_INTEGRATION.md`](../docs/ROVER_SDK_INTEGRATION.md).
 
+The confirmed 27-inch landscape layout, margins and rover clearance are documented in [`docs/PHYSICAL_BOARD.md`](../docs/PHYSICAL_BOARD.md). The active board is 53.44 × 33.40 cm with 8 columns × 5 rows; SDK 0.1.0 still uses the opposite orientation and must be corrected before physical integration.
+
 The physical rover executes only integer-cell forward moves and 90° turns. Motor timing is an estimate; `RoverSDK.execute()` waits for the post-movement AprilTag localization and returns the final grid position used by the Game Server.
 
 Safety requirements:

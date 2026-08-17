@@ -12,13 +12,14 @@ Jungle Explorer 不复制小车 SDK、定位服务或其调试前后端。它们
 Intent Card
   → Agent ActionPlan
   → MotionCommand[]
+  → services/rover-bridge
   → SDK 字符串序列 F2 L F3
   → RoverSDK.execute(sequence)
   → MissionResult.position.cell
   → Game Server 结算最终格
 ```
 
-SDK 已提供 Python 调用形式：
+Bridge 内部使用 SDK 已提供的 Python 调用形式：
 
 ```python
 from rover_agent import RoverSDK
@@ -47,28 +48,22 @@ SDK 的测试控制前端和定位前端用于硬件调试，不是 Jungle Explo
 
 ## 坐标转换
 
-SDK 的物理棋盘为 5 列 × 8 行，格子字符串格式为 `A-1` 至 `E-8`。本游戏状态使用 5 行 × 8 列的零基坐标，因此采用转置映射：
+27 寸横屏的正确物理契约为 8 列 × 5 行，SDK 修正后应输出 `A-1` 至 `H-5`：
 
 ```text
-SDK C-4
-letterIndex(C) = 2
-number(4) - 1 = 3
-→ Game Position { row: 2, col: 3 }
+SDK D-3 → Game Position { row: 2, col: 3 }
+game.row = sdkNumber - 1
+game.col = sdkLetterIndex
 ```
 
-通式：
+SDK `0.1.0` 当前仍硬编码 5 列 × 8 行和 `A-1..E-8`，与实物方向不一致。完整证据和 SDK 侧最小修改见 [`SDK_AUDIT.md`](SDK_AUDIT.md)。Bridge 提供两种显式映射：
 
-```text
-game.row = sdkLetter.charCodeAt(0) - charCode('A')
-game.col = sdkNumber - 1
-```
+- `landscape`：默认且用于最终实物，接受 `A-1..H-5`；
+- `legacy_transposed`：只用于旧 SDK 迁移测试，接受 `A-1..E-8` 并转置。
 
-输入必须满足：
+注意：`legacy_transposed` 只能兼容已有测试数据，不能修复 27 寸横屏上的 Homography 分格方向。正式实物联调前必须先修改 SDK 的 rows/columns。
 
-- SDK 字母为 `A..E`；
-- SDK 数字为 `1..8`；
-- `position.in_grid === true`；
-- `position.cell !== null`。
+无论哪种映射，输入都必须满足 `position.in_grid === true` 且 `position.cell !== null`。
 
 朝向角度必须通过现场标定转换为 `NORTH / EAST / SOUTH / WEST`，不能仅凭未经确认的角度符号假设方向。
 
@@ -118,15 +113,37 @@ Game Server 的适配器只用 `cell` 更新逻辑位置；厘米坐标、角度
 | 网络或 UDP 故障 | 停车、记录失败，不自动重试整段序列 |
 | 实际格与计划目标不同 | 采用实际格并记录偏差 |
 
-## 当前接入任务
+## Rover Bridge
 
-本仓库下一步应增加一个 Python Rover Bridge 或本地 sidecar：
+`services/rover-bridge` 已实现：
 
-1. 接收 Game Server 的 `MotionCommand[]` 和 `planId`；
-2. 转换成 SDK 字符串序列；
-3. 调用 `RoverSDK.execute`；
-4. 将 SDK 格子转换为 Game `Position`；
-5. 向 Game Server 提交最终位置和诊断遥测；
-6. 暴露 `stop()` 急停接口。
+1. 接收 Game Server 的 `MotionCommand[]`、`gameId` 和 `planId`；
+2. 幂等转换成 SDK 字符串序列；
+3. 在后台线程调用 `RoverSDK.execute`；
+4. 将 SDK 格子和朝向转换为 Game 坐标；
+5. 把最终位置和完整诊断遥测回调给 Game Server；
+6. 提供任务查询和 `stop()` 急停端点；
+7. 回调失败时保留任务结果，绝不重新执行小车任务。
 
-在该 Bridge 完成前，`ROVER_MODE=virtual` 继续用于纯软件联调。
+安装和启动：
+
+```bash
+python3 -m venv .venv-rover
+source .venv-rover/bin/activate
+pip install -r services/rover-bridge/requirements.txt
+pip install -e /path/to/moonfall-rover-control/backend_clients
+uvicorn app.main:app --app-dir services/rover-bridge --host 0.0.0.0 --port 8200
+```
+
+然后导出 `.env.example` 中的 `ROVER_BRIDGE_*`、`ROVER_IP`、`LOCALIZER_URL` 和标定参数，以 `ROVER_MODE=hardware` 启动 Game Server。
+
+Bridge API：
+
+| 方法 | 路径 | 用途 |
+| --- | --- | --- |
+| `GET` | `/health` | SDK 安装和目标网格检查 |
+| `POST` | `/missions` | 幂等创建并异步执行任务 |
+| `GET` | `/missions/:planId` | 查询任务和最终遥测 |
+| `POST` | `/missions/:planId/stop` | 请求 SDK 急停 |
+
+SDK 横屏常量修正前，`ROVER_MODE=virtual` 仍是完整游戏联调的默认模式。

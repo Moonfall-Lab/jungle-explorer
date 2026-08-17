@@ -12,9 +12,15 @@ import {
   createGameSchema,
   localizationSchema,
   playIntentSchema,
+  roverResultSchema,
 } from '@jungle/protocol';
 import type { GameEvent } from '@jungle/shared-types';
 import { GameStore } from './store.js';
+import {
+  dispatchPlan,
+  roverBridgeSettingsFromEnv,
+  stopPlan,
+} from './rover-bridge.js';
 
 function addEvent(state: ReturnType<GameStore['current']>, kind: GameEvent['kind'], message: string): void {
   state.events.push({
@@ -29,10 +35,12 @@ export async function buildServer(options: { logger?: boolean; roverMode?: 'virt
   const server = Fastify({ logger: options.logger ?? false });
   const store = new GameStore();
   const roverMode = options.roverMode ?? (process.env.ROVER_MODE === 'hardware' ? 'hardware' : 'virtual');
+  const roverBridge = roverMode === 'hardware' ? roverBridgeSettingsFromEnv() : undefined;
   await server.register(cors, {
     origin: [
       process.env.PLAYER_ORIGIN ?? 'http://localhost:5173',
       process.env.OBSERVER_ORIGIN ?? 'http://localhost:5174',
+      process.env.BOARD_ORIGIN ?? 'http://localhost:5175',
     ],
   });
 
@@ -79,6 +87,15 @@ export async function buildServer(options: { logger?: boolean; roverMode?: 'virt
 
     if (roverMode === 'virtual') {
       applyLocalization(state, plan.target, 1, state.rover.heading);
+    } else if (roverBridge) {
+      try {
+        await dispatchPlan(roverBridge, state.id, plan);
+      } catch (error) {
+        plan.status = 'FAILED';
+        const message = error instanceof Error ? error.message : 'Unknown Rover Bridge error';
+        addEvent(state, 'ROVER_FAILED', message);
+        throw error;
+      }
     }
     return { state: toPublicState(state), plan, roverMode };
   });
@@ -89,6 +106,44 @@ export async function buildServer(options: { logger?: boolean; roverMode?: 'virt
     const state = store.get(id);
     applyLocalization(state, input.position, input.confidence, input.heading ?? state.rover.heading);
     return toPublicState(state);
+  });
+
+  server.post('/api/games/:id/rover-results', async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const expectedToken = process.env.ROVER_BRIDGE_TOKEN ?? '';
+    if (expectedToken && request.headers['x-rover-token'] !== expectedToken) {
+      return reply.status(401).send({ error: 'Invalid Rover Bridge callback token' });
+    }
+    const input = roverResultSchema.parse(request.body);
+    const state = store.get(id);
+    if (input.gameId !== id) throw new Error('Rover result gameId does not match route');
+    if (!state.pendingPlan || state.pendingPlan.id !== input.planId) {
+      throw new Error(`Rover result does not match the pending plan: ${input.planId}`);
+    }
+    if (state.pendingPlan.status === 'CONFIRMED') return reply.send(toPublicState(state));
+    if (input.status === 'COMPLETED' && input.position) {
+      applyLocalization(state, input.position, 1, input.heading ?? state.rover.heading);
+    } else {
+      state.pendingPlan.status = 'FAILED';
+      addEvent(
+        state,
+        'ROVER_FAILED',
+        input.error ?? `Rover mission ${input.planId} ended as ${input.status}.`,
+      );
+    }
+    return reply.send(toPublicState(state));
+  });
+
+  server.post('/api/games/:id/rover-stop', async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const state = store.get(id);
+    if (!state.pendingPlan || state.pendingPlan.status !== 'DISPATCHED') {
+      throw new Error('No dispatched rover plan can be stopped');
+    }
+    if (!roverBridge) throw new Error('Rover Bridge is not configured');
+    await stopPlan(roverBridge, state.pendingPlan.id);
+    addEvent(state, 'ROVER_FAILED', `Emergency stop requested for ${state.pendingPlan.id}.`);
+    return reply.status(202).send({ accepted: true, planId: state.pendingPlan.id });
   });
 
   server.post('/api/games/:id/bio-signals', async (request, reply) => {

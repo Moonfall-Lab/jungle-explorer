@@ -7,10 +7,12 @@
 The physical sequence is intentionally asymmetric:
 
 1. Agent selects a target and emits a command plan.
-2. ESP32 executes timed movement.
-3. The rover completion message is operational telemetry only.
-4. Overhead vision localizes the AprilTag.
-5. Game Server accepts a confidence-gated grid position and only then reveals/resolves that tile.
+2. Game Server idempotently dispatches the plan to `services/rover-bridge`.
+3. The Bridge converts commands to `F/L/R` tokens and calls the external Python `RoverSDK`.
+4. ESP32 executes timed movement and stops.
+5. The SDK aggregates post-movement AprilTag frames and returns the actual final cell.
+6. The Bridge maps that cell to the 5×8 game coordinate and callbacks with the same `planId`.
+7. Game Server accepts the result once and only then reveals/resolves that tile.
 
 This prevents wheel slip, collision or calibration error from desynchronizing the tabletop and screen.
 
@@ -38,6 +40,8 @@ Rules and path selection are deterministic and testable. A future LLM adapter ma
 Vision and rPPG run as Python services because their likely dependencies differ from the TypeScript game stack. Their current applications are stable API boundaries, not fake perception algorithms. Camera capture, AprilTag detection, face ROI and signal extraction can be replaced independently.
 
 `ROVER_MODE=virtual` is a development adapter. `ROVER_MODE=hardware` requires explicit localization and therefore exercises the same authority boundary as the installation.
+
+The physical tabletop has its own `apps/web-board` client. It renders only the square 5×8 board at a fixed 8:5 aspect ratio so HUD layout changes cannot alter physical cell geometry. The player and observer applications remain separate screens.
 
 ## 5. Production hardening backlog
 

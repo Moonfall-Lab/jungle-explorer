@@ -32,6 +32,27 @@ export const bioSignalSchema = z.object({
   capturedAt: z.string().datetime(),
 });
 
+export const roverResultSchema = z
+  .object({
+    planId: z.string().min(1),
+    gameId: z.string().min(1),
+    status: z.enum(['COMPLETED', 'FAILED', 'CANCELLED']),
+    sequence: z.string().min(1),
+    position: positionSchema.optional(),
+    heading: z.enum(['NORTH', 'EAST', 'SOUTH', 'WEST']).optional(),
+    sdkTelemetry: z.record(z.string(), z.unknown()).optional(),
+    error: z.string().optional(),
+  })
+  .superRefine((value, context) => {
+    if (value.status === 'COMPLETED' && !value.position) {
+      context.addIssue({
+        code: 'custom',
+        path: ['position'],
+        message: 'a completed rover result requires a final position',
+      });
+    }
+  });
+
 export const roverMessageSchema = z.discriminatedUnion('type', [
   z.object({
     type: z.literal('EXECUTE_PLAN'),
@@ -59,4 +80,5 @@ export type CreateGameInput = z.infer<typeof createGameSchema>;
 export type PlayIntentInput = z.infer<typeof playIntentSchema>;
 export type LocalizationInput = z.infer<typeof localizationSchema>;
 export type BioSignalInput = z.infer<typeof bioSignalSchema>;
+export type RoverResultInput = z.infer<typeof roverResultSchema>;
 export type RoverMessage = z.infer<typeof roverMessageSchema>;
