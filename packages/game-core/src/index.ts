@@ -372,17 +372,44 @@ export function applyLocalization(
 ): GameState {
   if (state.phase === 'WON' || state.phase === 'LOST') return state;
   if (confidence < 0.6) throw new Error('Localization confidence is below the 0.60 referee threshold');
+  return commitRoverPosition(
+    state,
+    position,
+    heading,
+    'ROVER_LOCALIZED',
+    `全局摄像头裁定探险车位于第 ${position.row + 1} 行第 ${position.col + 1} 列。`,
+  );
+}
+
+export function applyMotionEstimate(
+  state: GameState,
+  position: Position,
+  heading = state.rover.heading,
+): GameState {
+  if (state.phase === 'WON' || state.phase === 'LOST') return state;
+  return commitRoverPosition(
+    state,
+    position,
+    heading,
+    'ROVER_MOVED',
+    `真实车完成运动，虚拟车按计划同步到第 ${position.row + 1} 行第 ${position.col + 1} 列。`,
+  );
+}
+
+function commitRoverPosition(
+  state: GameState,
+  position: Position,
+  heading: GameState['rover']['heading'],
+  eventKind: 'ROVER_LOCALIZED' | 'ROVER_MOVED',
+  message: string,
+): GameState {
   if (!getTruth(state, position)) throw new Error('Localized position is outside the game board');
   state.rover.position = position;
   state.rover.heading = heading;
   state.rover.batteryPercent = Math.max(0, state.rover.batteryPercent - 1);
   state.round += 1;
   if (state.pendingPlan) state.pendingPlan.status = 'CONFIRMED';
-  pushEvent(
-    state,
-    'ROVER_LOCALIZED',
-    `全局摄像头裁定探险车位于第 ${position.row + 1} 行第 ${position.col + 1} 列。`,
-  );
+  pushEvent(state, eventKind, message);
   revealAt(state, position);
   checkEndConditions(state);
   return state;

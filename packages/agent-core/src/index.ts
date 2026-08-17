@@ -150,7 +150,7 @@ export function decideAction(state: GameState, intent: IntentCard): ActionPlan {
   const expectedRisk = Math.max(...path.slice(1).map((position) => risks.get(positionKey(position)) ?? 0.5), 0);
   const explanation = explanationFor(state, intent, selection.position, expectedRisk);
   return {
-    id: `plan-${state.round + 1}-${positionKey(selection.position).replace(':', '-')}`,
+    id: `${state.id}-plan-${state.round + 1}-${positionKey(selection.position).replace(':', '-')}`,
     intent,
     target: selection.position,
     path,

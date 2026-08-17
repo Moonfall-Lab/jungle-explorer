@@ -12,7 +12,7 @@ Jungle Explorer 是一款 2–6 人、单局 15–25 分钟的协作探索游戏
 - 权威 Game Server，严格分离服务器真相、玩家知识和 Observer Mode；
 - 扫雷式八邻域数字提示、3 HP、资源、遗迹夺取与返回 BASE 胜负判定；
 - Jungle Awakens：夺取后计时以 1.8 倍流逝、部分安全格重回未知、新增动态危险、Agent 切换撤离策略；
-- 风险图推理、A* 路径规划、人格权重和四类意图卡策略；
+- 风险图推理、A* 路径规划，以及谨慎型、冒险型、资源型、直觉型四种 Agent 人格；
 - 整数格移动及 90° 转弯任务序列；
 - 虚拟车自动闭环，以及等待 AprilTag 定位裁决的硬件模式；
 - 玩家控制台、Observer 上帝视角、Rover/Agent/Bio HUD 和事件日志；
@@ -48,10 +48,29 @@ npm run dev:board
 
 ```bash
 cp .env.example .env
-ROVER_MODE=hardware npm run dev:server
+set -a
+source .env
+set +a
+npm run dev:server
 ```
 
 此时行动计划会停留在 `DISPATCHED`，只有 `POST /api/games/:id/localizations` 的摄像头定位才能推进回合。置信度低于 0.60 的定位会被拒绝。
+
+当前可先使用仅运动模式接真车，不启用 AprilTag 最终校正：
+
+```bash
+python3 -m venv .venv-bridge
+.venv-bridge/bin/pip install -r services/rover-bridge/requirements.txt
+.venv-bridge/bin/pip install -e /path/to/moonfall-rover-control/backend_clients
+set -a
+source .env
+set +a
+.venv-bridge/bin/uvicorn app.main:app --app-dir services/rover-bridge --port 8200
+```
+
+将 `.env` 中的 `ROVER_LOCALIZATION_MODE` 设为 `disabled`。运动结束后 Bridge
+返回 `MOTION_COMPLETED`，Game Server 不会把计划目标写入棋盘，等待以后接入
+真实定位。该模式不在实体棋盘页面增加控制按钮。
 
 ## 游戏目标
 

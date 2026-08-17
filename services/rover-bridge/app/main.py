@@ -38,6 +38,7 @@ class RoverConfig(BaseModel):
     settle_sec: float = Field(default=0.25, ge=0)
     localization_timeout_sec: float = Field(default=5, gt=0, le=60)
     localization_samples: int = Field(default=3, ge=1, le=20)
+    localization_mode: Literal["required", "disabled"] = "required"
     grid_mapping: Literal["landscape", "legacy_transposed"] = "landscape"
     heading_offset_deg: float = 0
 
@@ -53,7 +54,9 @@ class MissionRequest(BaseModel):
 class MissionSnapshot(BaseModel):
     plan_id: str = Field(alias="planId")
     game_id: str = Field(alias="gameId")
-    status: Literal["RUNNING", "COMPLETED", "FAILED", "CANCELLED"]
+    status: Literal[
+        "RUNNING", "MOTION_COMPLETED", "COMPLETED", "FAILED", "CANCELLED"
+    ]
     sequence: str
     position: dict[str, int] | None = None
     heading: str | None = None
@@ -141,25 +144,31 @@ def run_mission(record: MissionRecord, request: MissionRequest) -> None:
         with LOCK:
             record.sdk = sdk
         try:
-            result = sdk.execute(
-                record.sequence,
-                localization_timeout_sec=request.rover.localization_timeout_sec,
-                localization_samples=request.rover.localization_samples,
-            )
-            sdk_position = result.position.to_dict()
-            if not sdk_position.get("in_grid") or not sdk_position.get("cell"):
-                raise BridgeValidationError("SDK returned an out-of-grid position")
-            position = sdk_cell_to_position(
-                str(sdk_position["cell"]), request.rover.grid_mapping
-            )
-            heading = sdk_heading_to_cardinal(
-                float(sdk_position["heading_deg"]), request.rover.heading_offset_deg
-            )
-            with LOCK:
-                record.position = position
-                record.heading = heading
-                record.sdk_telemetry = result.to_dict()
-                record.status = "COMPLETED"
+            if request.rover.localization_mode == "disabled":
+                result = sdk.execute_motion(record.sequence)
+                with LOCK:
+                    record.sdk_telemetry = result.to_dict()
+                    record.status = "MOTION_COMPLETED"
+            else:
+                result = sdk.execute(
+                    record.sequence,
+                    localization_timeout_sec=request.rover.localization_timeout_sec,
+                    localization_samples=request.rover.localization_samples,
+                )
+                sdk_position = result.position.to_dict()
+                if not sdk_position.get("in_grid") or not sdk_position.get("cell"):
+                    raise BridgeValidationError("SDK returned an out-of-grid position")
+                position = sdk_cell_to_position(
+                    str(sdk_position["cell"]), request.rover.grid_mapping
+                )
+                heading = sdk_heading_to_cardinal(
+                    float(sdk_position["heading_deg"]), request.rover.heading_offset_deg
+                )
+                with LOCK:
+                    record.position = position
+                    record.heading = heading
+                    record.sdk_telemetry = result.to_dict()
+                    record.status = "COMPLETED"
         finally:
             sdk.close()
     except ModuleNotFoundError as error:
@@ -188,6 +197,7 @@ def health() -> dict[str, object]:
         "status": "ok" if sdk_installed else "degraded",
         "sdkInstalled": sdk_installed,
         "expectedGrid": "8-columns-x-5-rows",
+        "supportsMotionOnly": True,
     }
 
 

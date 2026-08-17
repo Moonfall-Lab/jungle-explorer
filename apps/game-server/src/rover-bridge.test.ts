@@ -18,6 +18,7 @@ const settings: RoverBridgeSettings = {
   leftTurnSec: 0.692,
   rightTurnSec: 0.901,
   settleSec: 0.25,
+  localizationMode: 'disabled',
   gridMapping: 'landscape',
   headingOffsetDeg: 0,
 };
@@ -51,6 +52,7 @@ describe('rover bridge client', () => {
       rover: {
         ip: '192.168.20.155',
         cell_cm: 6.68,
+        localization_mode: 'disabled',
         grid_mapping: 'landscape',
       },
       callbackUrl: 'http://127.0.0.1:3000/api/games/game-1/rover-results',

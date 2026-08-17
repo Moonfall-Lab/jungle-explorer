@@ -42,4 +42,10 @@ describe('agent core', () => {
       Math.abs(plan.target.col - state.rover.position.col),
     )).toBeLessThanOrEqual(2);
   });
+
+  it('uses unique mission ids across games', () => {
+    const first = createGame('mission-id-a');
+    const second = createGame('mission-id-b');
+    expect(decideAction(first, 'VERIFY').id).not.toBe(decideAction(second, 'VERIFY').id);
+  });
 });

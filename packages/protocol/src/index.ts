@@ -15,6 +15,10 @@ export const playIntentSchema = z.object({
   card: z.enum(['CAUTIOUS', 'EXPLORE', 'VERIFY', 'FIND_CLUE']),
 });
 
+export const updatePersonaSchema = z.object({
+  persona: z.enum(['CAUTIOUS', 'DAREDEVIL', 'FORAGER', 'INSTINCT']),
+});
+
 export const localizationSchema = z.object({
   roverId: z.string().min(1).default('rover-01'),
   position: positionSchema,
@@ -36,7 +40,7 @@ export const roverResultSchema = z
   .object({
     planId: z.string().min(1),
     gameId: z.string().min(1),
-    status: z.enum(['COMPLETED', 'FAILED', 'CANCELLED']),
+    status: z.enum(['MOTION_COMPLETED', 'COMPLETED', 'FAILED', 'CANCELLED']),
     sequence: z.string().min(1),
     position: positionSchema.optional(),
     heading: z.enum(['NORTH', 'EAST', 'SOUTH', 'WEST']).optional(),
@@ -78,6 +82,7 @@ export const roverMessageSchema = z.discriminatedUnion('type', [
 
 export type CreateGameInput = z.infer<typeof createGameSchema>;
 export type PlayIntentInput = z.infer<typeof playIntentSchema>;
+export type UpdatePersonaInput = z.infer<typeof updatePersonaSchema>;
 export type LocalizationInput = z.infer<typeof localizationSchema>;
 export type BioSignalInput = z.infer<typeof bioSignalSchema>;
 export type RoverResultInput = z.infer<typeof roverResultSchema>;

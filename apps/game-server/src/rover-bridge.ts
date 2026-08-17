@@ -1,4 +1,5 @@
 import type { ActionPlan } from '@jungle/shared-types';
+import { isIP } from 'node:net';
 
 export interface RoverBridgeSettings {
   url: string;
@@ -16,6 +17,7 @@ export interface RoverBridgeSettings {
   leftTurnSec: number;
   rightTurnSec: number;
   settleSec: number;
+  localizationMode: 'required' | 'disabled';
   gridMapping: 'landscape' | 'legacy_transposed';
   headingOffsetDeg: number;
 }
@@ -26,11 +28,30 @@ const numberFromEnv = (name: string, fallback: number): number => {
   return value;
 };
 
-export function roverBridgeSettingsFromEnv(): RoverBridgeSettings | undefined {
-  const url = process.env.ROVER_BRIDGE_URL?.replace(/\/$/, '');
-  if (!url) return undefined;
-  const roverIp = process.env.ROVER_IP;
-  if (!roverIp) throw new Error('ROVER_IP is required when ROVER_BRIDGE_URL is configured');
+export interface RoverConnectionStatus {
+  ip: string;
+  online: boolean;
+  motors?: { left: number; right: number; speed: number };
+  error?: string;
+}
+
+export function normalizeRoverIp(value: string): string {
+  const ip = value.trim();
+  if (isIP(ip) !== 4) throw new Error('请输入有效的 IPv4 地址');
+  const [first = -1, second = -1] = ip.split('.').map(Number);
+  const isLocal = first === 10
+    || first === 127
+    || (first === 192 && second === 168)
+    || (first === 172 && second >= 16 && second <= 31);
+  if (!isLocal) throw new Error('小车 IP 必须是局域网地址');
+  return ip;
+}
+
+const buildSettings = (
+  url: string,
+  roverIp: string,
+  localizationMode: 'required' | 'disabled',
+): RoverBridgeSettings => {
   const gridMapping = process.env.SDK_GRID_MAPPING ?? 'landscape';
   if (gridMapping !== 'landscape' && gridMapping !== 'legacy_transposed') {
     throw new Error('SDK_GRID_MAPPING must be landscape or legacy_transposed');
@@ -51,9 +72,51 @@ export function roverBridgeSettingsFromEnv(): RoverBridgeSettings | undefined {
     leftTurnSec: numberFromEnv('ROVER_LEFT_TURN_SEC', 0.692),
     rightTurnSec: numberFromEnv('ROVER_RIGHT_TURN_SEC', 0.901),
     settleSec: numberFromEnv('ROVER_SETTLE_SEC', 0.25),
+    localizationMode,
     gridMapping,
     headingOffsetDeg: numberFromEnv('ROVER_HEADING_OFFSET_DEG', 0),
   };
+};
+
+export function roverBridgeSettingsFromEnv(): RoverBridgeSettings | undefined {
+  const url = process.env.ROVER_BRIDGE_URL?.replace(/\/$/, '');
+  if (!url) return undefined;
+  const roverIp = process.env.ROVER_IP;
+  if (!roverIp) throw new Error('ROVER_IP is required when ROVER_BRIDGE_URL is configured');
+  const localizationMode = process.env.ROVER_LOCALIZATION_MODE ?? 'required';
+  if (localizationMode !== 'required' && localizationMode !== 'disabled') {
+    throw new Error('ROVER_LOCALIZATION_MODE must be required or disabled');
+  }
+  return buildSettings(url, normalizeRoverIp(roverIp), localizationMode);
+}
+
+export function roverBridgeSettingsForIp(ip: string): RoverBridgeSettings {
+  const url = (process.env.ROVER_BRIDGE_URL ?? 'http://127.0.0.1:8200').replace(/\/$/, '');
+  return buildSettings(url, normalizeRoverIp(ip), 'disabled');
+}
+
+export async function checkRoverConnection(ipValue: string): Promise<RoverConnectionStatus> {
+  const ip = normalizeRoverIp(ipValue);
+  try {
+    const response = await fetch(`http://${ip}/status`, { signal: AbortSignal.timeout(1500) });
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const status = await response.json() as { L?: unknown; R?: unknown; spd?: unknown };
+    return {
+      ip,
+      online: true,
+      motors: {
+        left: Number(status.L ?? 0),
+        right: Number(status.R ?? 0),
+        speed: Number(status.spd ?? 0),
+      },
+    };
+  } catch (error) {
+    return {
+      ip,
+      online: false,
+      error: error instanceof Error ? error.message : '连接失败',
+    };
+  }
 }
 
 export async function dispatchPlan(
@@ -84,6 +147,7 @@ export async function dispatchPlan(
         left_turn_sec: settings.leftTurnSec,
         right_turn_sec: settings.rightTurnSec,
         settle_sec: settings.settleSec,
+        localization_mode: settings.localizationMode,
         grid_mapping: settings.gridMapping,
         heading_offset_deg: settings.headingOffsetDeg,
       },

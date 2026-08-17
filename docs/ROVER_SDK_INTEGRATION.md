@@ -36,6 +36,21 @@ print(result.position.cell)
 
 SDK 的测试控制前端和定位前端用于硬件调试，不是 Jungle Explorer 玩家界面，也不应合并到本仓库。
 
+## 第一阶段：仅运动接口
+
+尚未启用 AprilTag 最终校正时，将 `ROVER_LOCALIZATION_MODE` 设为
+`disabled`。Bridge 会调用 `RoverSDK.execute_motion()`，复用真实车测试过的
+定时运动、UDP 保活、固件看门狗和急停逻辑，但不会访问定位服务。
+
+运动结束后的任务状态是 `MOTION_COMPLETED`：
+
+- `position` 和 `heading` 保持为空；
+- Game Server 记录运动已经结束；
+- 棋盘位置、回合数和格子结算保持不变；
+- 待后续定位结果到达后，再由权威定位推进回合。
+
+该接口只位于 Game Server 和 Rover Bridge，不在 `apps/web-board` 增加控制按钮。
+
 ## 运动序列转换
 
 | Game Server 命令 | SDK Token |
@@ -132,6 +147,9 @@ python3 -m venv .venv-rover
 source .venv-rover/bin/activate
 pip install -r services/rover-bridge/requirements.txt
 pip install -e /path/to/moonfall-rover-control/backend_clients
+set -a
+source .env
+set +a
 uvicorn app.main:app --app-dir services/rover-bridge --host 0.0.0.0 --port 8200
 ```
 
@@ -145,5 +163,23 @@ Bridge API：
 | `POST` | `/missions` | 幂等创建并异步执行任务 |
 | `GET` | `/missions/:planId` | 查询任务和最终遥测 |
 | `POST` | `/missions/:planId/stop` | 请求 SDK 急停 |
+
+仅运动请求示例：
+
+```json
+{
+  "planId": "plan-1",
+  "gameId": "game-1",
+  "commands": [
+    { "action": "FORWARD", "cells": 1 },
+    { "action": "TURN_LEFT", "degrees": 90 }
+  ],
+  "rover": {
+    "ip": "192.168.20.155",
+    "port": 8888,
+    "localization_mode": "disabled"
+  }
+}
+```
 
 SDK 横屏常量修正前，`ROVER_MODE=virtual` 仍是完整游戏联调的默认模式。
