@@ -1,0 +1,14 @@
+{
+  "name": "@jungle/ui-components",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./styles.css": "./src/styles.css"
+  },
+  "types": "./src/index.ts",
+  "scripts": { "build": "tsc -b", "typecheck": "tsc -b --pretty false" },
+  "dependencies": { "@jungle/shared-types": "*", "react": "^19.1.1" },
+  "devDependencies": { "@types/react": "^19.1.10" }
+}

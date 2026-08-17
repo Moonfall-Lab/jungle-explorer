@@ -1,0 +1,37 @@
+{
+  "name": "jungle-explorer",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Human-Agent collaborative physical jungle exploration game",
+  "workspaces": [
+    "apps/*",
+    "packages/*",
+    "simulations/*"
+  ],
+  "scripts": {
+    "dev": "npm run dev --workspace @jungle/game-server",
+    "dev:server": "npm run dev --workspace @jungle/game-server",
+    "dev:player": "npm run dev --workspace @jungle/web-player",
+    "dev:observer": "npm run dev --workspace @jungle/web-observer",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc -b",
+    "build": "npm run build --workspaces --if-present",
+    "lint": "eslint .",
+    "format": "prettier --write .",
+    "check": "npm run lint && npm run typecheck && npm test && npm run build"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.33.0",
+    "@types/node": "^22.17.2",
+    "eslint": "^9.33.0",
+    "prettier": "^3.6.2",
+    "typescript": "^5.9.2",
+    "typescript-eslint": "^8.39.1",
+    "vitest": "^3.2.4"
+  }
+}

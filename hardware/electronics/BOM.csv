@@ -1,0 +1,10 @@
+category,item,quantity,status,notes
+Compute,ESP32 development board,2,planned,One per rover
+Motion,DC geared motor,4,planned,Two per rover
+Motion,Dual H-bridge motor driver,2,planned,Validate logic voltage
+Power,Protected battery pack,2,planned,Add physical cutoff
+Tracking,AprilTag marker,2,planned,Unique tag per rover
+Vision,Overhead global camera,1,planned,Fixed exposure preferred
+Vision,Front-facing rPPG camera,2,optional,Gameplay context only
+Tabletop,16x16 modular jungle tile set,1,planned,Logical overlay remains 5x8
+AV,RGB lighting and speaker,1,optional,Driven by game events

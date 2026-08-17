@@ -1,0 +1,11 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": { "composite": true, "outDir": "dist", "rootDir": "src" },
+  "include": ["src"],
+  "references": [
+    { "path": "../../packages/shared-types" },
+    { "path": "../../packages/protocol" },
+    { "path": "../../packages/game-core" },
+    { "path": "../../packages/agent-core" }
+  ]
+}

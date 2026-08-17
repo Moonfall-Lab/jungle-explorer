@@ -1,0 +1,15 @@
+{
+  "files": [],
+  "references": [
+    { "path": "packages/shared-types" },
+    { "path": "packages/protocol" },
+    { "path": "packages/game-core" },
+    { "path": "packages/navigation" },
+    { "path": "packages/agent-core" },
+    { "path": "packages/ui-components" },
+    { "path": "apps/game-server" },
+    { "path": "apps/web-player" },
+    { "path": "apps/web-observer" },
+    { "path": "simulations/virtual-rover" }
+  ]
+}

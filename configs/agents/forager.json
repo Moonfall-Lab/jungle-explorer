@@ -1,0 +1,8 @@
+{
+  "id": "forager",
+  "label": "Forager",
+  "riskWeight": 0.35,
+  "informationWeight": 0.2,
+  "resourceWeight": 0.45,
+  "unknownPenalty": 0.2
+}

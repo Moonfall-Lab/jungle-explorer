@@ -1,0 +1,21 @@
+{
+  "name": "@jungle/game-server",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/main.ts",
+    "start": "node dist/server.js",
+    "build": "tsc -b && esbuild src/main.ts --bundle --platform=node --format=esm --outfile=dist/server.js --external:fastify --external:@fastify/cors",
+    "typecheck": "tsc -b --pretty false"
+  },
+  "dependencies": {
+    "@fastify/cors": "^11.1.0",
+    "@jungle/agent-core": "*",
+    "@jungle/game-core": "*",
+    "@jungle/protocol": "*",
+    "@jungle/shared-types": "*",
+    "fastify": "^5.5.0"
+  },
+  "devDependencies": { "esbuild": "^0.25.9", "tsx": "^4.20.4" }
+}

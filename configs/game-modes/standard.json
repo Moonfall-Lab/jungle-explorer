@@ -1,0 +1,15 @@
+{
+  "id": "standard",
+  "rows": 5,
+  "columns": 8,
+  "durationMinutes": 20,
+  "startingHp": 3,
+  "maxHp": 4,
+  "hazards": 9,
+  "relicClues": 3,
+  "requiredClues": 2,
+  "waterSources": 3,
+  "rareFlowers": 2,
+  "supplyCaches": 2,
+  "awakeningTimeMultiplier": 1.8
+}

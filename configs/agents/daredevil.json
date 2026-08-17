@@ -1,0 +1,8 @@
+{
+  "id": "daredevil",
+  "label": "Jungle Daredevil",
+  "riskWeight": 0.2,
+  "informationWeight": 0.55,
+  "resourceWeight": 0.25,
+  "unknownPenalty": 0.05
+}

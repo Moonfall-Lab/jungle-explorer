@@ -1,0 +1,11 @@
+{
+  "name": "@jungle/virtual-rover",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": "./src/index.ts",
+  "types": "./src/index.ts",
+  "scripts": { "build": "tsc -b", "typecheck": "tsc -b --pretty false", "demo": "tsx src/demo.ts" },
+  "dependencies": { "@jungle/shared-types": "*" },
+  "devDependencies": { "tsx": "^4.20.4" }
+}

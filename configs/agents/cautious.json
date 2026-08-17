@@ -1,0 +1,8 @@
+{
+  "id": "cautious",
+  "label": "Cautious Explorer",
+  "riskWeight": 0.65,
+  "informationWeight": 0.2,
+  "resourceWeight": 0.15,
+  "unknownPenalty": 0.35
+}
