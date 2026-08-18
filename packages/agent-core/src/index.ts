@@ -1,33 +1,17 @@
 import type {
   ActionPlan,
-  AgentPersona,
   GameState,
   IntentCard,
   Position,
   TileKnowledge,
 } from '@jungle/shared-types';
-import { positionKey, samePosition } from '@jungle/shared-types';
+import { AGENT_PERSONA_PROFILES, positionKey, samePosition } from '@jungle/shared-types';
 import { findPath, neighbors, pathToCommands } from '@jungle/navigation';
 
 export interface RiskCell {
   position: Position;
   risk: number;
 }
-
-interface PolicyWeights {
-  risk: number;
-  information: number;
-  resource: number;
-  progress: number;
-  tensionResponse: number;
-}
-
-const personaWeights: Record<AgentPersona, PolicyWeights> = {
-  CAUTIOUS: { risk: 0.62, information: 0.16, resource: 0.12, progress: 0.1, tensionResponse: 0.25 },
-  DAREDEVIL: { risk: 0.2, information: 0.48, resource: 0.12, progress: 0.2, tensionResponse: -0.15 },
-  FORAGER: { risk: 0.34, information: 0.18, resource: 0.36, progress: 0.12, tensionResponse: 0.1 },
-  INSTINCT: { risk: 0.3, information: 0.28, resource: 0.12, progress: 0.3, tensionResponse: 0 },
-};
 
 const knowledgeAt = (state: GameState, position: Position): TileKnowledge | undefined =>
   state.knowledge.find((tile) => samePosition(tile.position, position));
@@ -109,7 +93,7 @@ export function decideAction(state: GameState, intent: IntentCard): ActionPlan {
   }
   const riskMap = buildRiskMap(state);
   const risks = new Map(riskMap.map((cell) => [positionKey(cell.position), cell.risk]));
-  const weights = personaWeights[state.agent.persona];
+  const weights = AGENT_PERSONA_PROFILES[state.agent.persona].weights;
   const targetForProgress = progressTarget(state);
   const candidates = candidatePositions(state, intent);
   const maxDistance = state.config.rows + state.config.columns;

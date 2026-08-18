@@ -16,7 +16,7 @@ import {
   roverResultSchema,
   updatePersonaSchema,
 } from '@jungle/protocol';
-import type { ActionPlan, GameEvent, Heading } from '@jungle/shared-types';
+import type { ActionPlan, GameEvent, GameState, Heading, MockFieldScenario, Position } from '@jungle/shared-types';
 import { GameStore } from './store.js';
 import {
   checkRoverConnection,
@@ -45,11 +45,16 @@ function headingAfterPlan(initial: Heading, plan: ActionPlan): Heading {
   return headings[index] ?? initial;
 }
 
-export async function buildServer(options: { logger?: boolean; roverMode?: 'virtual' | 'hardware' } = {}) {
+type RoverMode = 'virtual' | 'hardware' | 'mock';
+
+export async function buildServer(options: { logger?: boolean; roverMode?: RoverMode; mockStepMs?: number } = {}) {
   const server = Fastify({ logger: options.logger ?? false });
   const store = new GameStore();
-  let roverMode = options.roverMode ?? (process.env.ROVER_MODE === 'hardware' ? 'hardware' : 'virtual');
+  let roverMode: RoverMode = options.roverMode ?? (process.env.ROVER_MODE === 'hardware' ? 'hardware' : 'virtual');
   let roverBridge = roverMode === 'hardware' ? roverBridgeSettingsFromEnv() : undefined;
+  let mockScenario: MockFieldScenario = 'NORMAL';
+  const mockStepMs = options.mockStepMs ?? 420;
+  const mockTimers = new Set<ReturnType<typeof setTimeout>>();
   await server.register(cors, {
     origin: [
       process.env.PLAYER_ORIGIN ?? 'http://localhost:5173',
@@ -70,9 +75,76 @@ export async function buildServer(options: { logger?: boolean; roverMode?: 'virt
 
   const roverOperatorState = () => ({
     roverMode,
-    configured: roverMode === 'hardware' && Boolean(roverBridge),
-    ip: roverBridge?.roverIp ?? null,
-    localizationMode: roverBridge?.localizationMode ?? 'disabled',
+    configured: roverMode === 'mock' || (roverMode === 'hardware' && Boolean(roverBridge)),
+    ip: roverMode === 'mock' ? 'mock://field-lab' : roverBridge?.roverIp ?? null,
+    localizationMode: roverMode === 'mock' ? 'required' : roverBridge?.localizationMode ?? 'disabled',
+    ...(roverMode === 'mock' ? { mockScenario } : {}),
+  });
+
+  const waitForMockStep = () => new Promise<void>((resolve) => {
+    const timer = setTimeout(() => {
+      mockTimers.delete(timer);
+      resolve();
+    }, mockStepMs);
+    mockTimers.add(timer);
+  });
+
+  const driftedPosition = (target: Position, state: GameState): Position => {
+    const candidates = [
+      { row: target.row, col: target.col + 1 },
+      { row: target.row + 1, col: target.col },
+      { row: target.row, col: target.col - 1 },
+      { row: target.row - 1, col: target.col },
+    ];
+    return candidates.find((position) => position.row >= 0 && position.row < state.config.rows
+      && position.col >= 0 && position.col < state.config.columns) ?? target;
+  };
+
+  const runMockFieldTurn = async (state: GameState, plan: ActionPlan, scenario: MockFieldScenario) => {
+    const route = plan.path.length > 0 ? plan.path : [state.rover.position, plan.target];
+    for (let index = 1; index < route.length; index += 1) {
+      await waitForMockStep();
+      if (state.pendingPlan?.id !== plan.id || state.pendingPlan.status !== 'DISPATCHED') return;
+      state.fieldFeedback = {
+        source: 'MOCK', scenario, status: 'MOVING', actualPath: route.slice(0, index + 1),
+        progress: index / Math.max(1, route.length - 1), robotOnline: true,
+        localizationOnline: true, cameraOnline: true,
+        message: `机器人已到达路线节点 ${index}/${Math.max(1, route.length - 1)}`,
+      };
+    }
+    await waitForMockStep();
+    if (state.pendingPlan?.id !== plan.id || state.pendingPlan.status !== 'DISPATCHED') return;
+    state.fieldFeedback = {
+      source: 'MOCK', scenario, status: 'SCANNING', actualPath: route,
+      progress: 1, robotOnline: true, localizationOnline: true, cameraOnline: true,
+      message: '机器人已抵达，现场摄像头正在锁定最终位置。',
+    };
+    await waitForMockStep();
+    if (state.pendingPlan?.id !== plan.id || state.pendingPlan.status !== 'DISPATCHED') return;
+    if (scenario === 'FAILURE') {
+      plan.status = 'FAILED';
+      state.fieldFeedback = {
+        source: 'MOCK', scenario, status: 'FAILED', actualPath: route,
+        progress: 1, robotOnline: true, localizationOnline: false, cameraOnline: false,
+        message: '现场摄像头未能确认位置，请重新规划本轮行动。', confidence: 0.24,
+      };
+      addEvent(state, 'ROVER_FAILED', 'Mock camera localization failed with low confidence.');
+      return;
+    }
+    const actualPosition = scenario === 'DRIFT' ? driftedPosition(plan.target, state) : plan.target;
+    const confidence = scenario === 'DRIFT' ? 0.86 : 0.98;
+    applyLocalization(state, actualPosition, confidence, headingAfterPlan(state.rover.heading, plan));
+    state.fieldFeedback = {
+      source: 'MOCK', scenario, status: 'LOCKED', actualPath: [...route, actualPosition],
+      progress: 1, robotOnline: true, localizationOnline: true, cameraOnline: true,
+      message: scenario === 'DRIFT' ? '定位确认：实际落点与规划目标存在一格偏移。' : '定位确认：实际落点与规划目标一致。',
+      confidence,
+    };
+  };
+
+  server.addHook('onClose', async () => {
+    for (const timer of mockTimers) clearTimeout(timer);
+    mockTimers.clear();
   });
 
   server.get('/health', async () => ({ status: 'ok', ...roverOperatorState() }));
@@ -97,6 +169,17 @@ export async function buildServer(options: { logger?: boolean; roverMode?: 'virt
     roverBridge = undefined;
     roverMode = 'virtual';
     return roverOperatorState();
+  });
+
+  server.post('/api/operator/rover/mock', async (request, reply) => {
+    const { scenario } = request.body as { scenario?: unknown };
+    if (scenario !== 'NORMAL' && scenario !== 'DRIFT' && scenario !== 'FAILURE') {
+      return reply.status(400).send({ error: 'Mock scenario must be NORMAL, DRIFT, or FAILURE' });
+    }
+    roverBridge = undefined;
+    roverMode = 'mock';
+    mockScenario = scenario;
+    return reply.send(roverOperatorState());
   });
 
   server.post('/api/games', async (request, reply) => {
@@ -146,6 +229,13 @@ export async function buildServer(options: { logger?: boolean; roverMode?: 'virt
 
     if (roverMode === 'virtual') {
       applyLocalization(state, plan.target, 1, state.rover.heading);
+    } else if (roverMode === 'mock') {
+      state.fieldFeedback = {
+        source: 'MOCK', scenario: mockScenario, status: 'MOVING', actualPath: [state.rover.position],
+        progress: 0, robotOnline: true, localizationOnline: true, cameraOnline: true,
+        message: 'Mock 现场已接收任务，机器人准备出发。',
+      };
+      void runMockFieldTurn(state, plan, mockScenario);
     } else if (roverBridge) {
       try {
         await dispatchPlan(roverBridge, state.id, plan);

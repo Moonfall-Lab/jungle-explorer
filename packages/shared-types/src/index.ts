@@ -16,7 +16,40 @@ export type Terrain = 'GRASSLAND' | 'RAINFOREST' | 'SWAMP' | 'CLEARING';
 export type GamePhase = 'EXPLORING' | 'AWAKENED' | 'WON' | 'LOST';
 export type Heading = 'NORTH' | 'EAST' | 'SOUTH' | 'WEST';
 export type AgentPersona = 'CAUTIOUS' | 'DAREDEVIL' | 'FORAGER' | 'INSTINCT';
+export interface AgentPersonaProfile {
+  name: string;
+  title: string;
+  description: string;
+  credo: string;
+  preference: string;
+  weights: {
+    risk: number;
+    information: number;
+    resource: number;
+    progress: number;
+    tensionResponse: number;
+  };
+}
+export const AGENT_PERSONA_PROFILES: Record<AgentPersona, AgentPersonaProfile> = {
+  CAUTIOUS: {
+    name: '守望者', title: '谨慎型探索者', description: '尽量避开未知区域，优先选择已知、低风险且便于撤退的路线。', credo: '看清前路，再稳步前进。', preference: '低风险路径优先',
+    weights: { risk: 0.62, information: 0.16, resource: 0.12, progress: 0.1, tensionResponse: 0.25 },
+  },
+  DAREDEVIL: {
+    name: '开路者', title: '丛林冒险家', description: '偏好高风险路径，愿意用更大胆的探索换取速度与新发现。', credo: '越过危险，才能发现新的道路。', preference: '未知信息优先',
+    weights: { risk: 0.2, information: 0.48, resource: 0.12, progress: 0.2, tensionResponse: -0.15 },
+  },
+  FORAGER: {
+    name: '寻迹者', title: '资源采集者', description: '优先寻找水源与花朵，并在规划路线时更重视沿途资源。', credo: '每一份资源，都可能改变远征。', preference: '资源收益优先',
+    weights: { risk: 0.34, information: 0.18, resource: 0.36, progress: 0.12, tensionResponse: 0.1 },
+  },
+  INSTINCT: {
+    name: '逐风者', title: '直觉型智能体', description: '基于附近的局部信息快速决策，及时选择当前最有利的方向。', credo: '信息有限，也要果断前行。', preference: '目标进度优先',
+    weights: { risk: 0.3, information: 0.28, resource: 0.12, progress: 0.3, tensionResponse: 0 },
+  },
+};
 export type VictoryMode = 'RETURN_TO_BASE' | 'RELIC_ONLY';
+export type MockFieldScenario = 'NORMAL' | 'DRIFT' | 'FAILURE';
 
 export interface Position {
   row: number;
@@ -106,6 +139,19 @@ export interface ActionPlan {
   status: 'PENDING' | 'DISPATCHED' | 'CONFIRMED' | 'FAILED';
 }
 
+export interface FieldFeedback {
+  source: 'MOCK' | 'HARDWARE';
+  scenario?: MockFieldScenario;
+  status: 'IDLE' | 'MOVING' | 'SCANNING' | 'LOCKED' | 'FAILED';
+  actualPath: Position[];
+  progress: number;
+  robotOnline: boolean;
+  localizationOnline: boolean;
+  cameraOnline: boolean;
+  message: string;
+  confidence?: number;
+}
+
 export interface GameConfig {
   rows: number;
   columns: number;
@@ -137,6 +183,7 @@ export interface GameState {
   pathHints: Position[];
   round: number;
   pendingPlan?: ActionPlan;
+  fieldFeedback?: FieldFeedback;
   agent: AgentState;
   latestBio?: BioSignal;
   events: GameEvent[];

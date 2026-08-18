@@ -1,5 +1,6 @@
 import type {
   HazardType,
+  IntentCard,
   ObserverGameState,
   Position,
   PublicGameState,
@@ -25,20 +26,35 @@ export function JungleMap({
   selected,
   onSelect,
   itemArtwork,
+  preview,
+  route,
+  target,
+  candidates,
+  revealedPosition,
+  stageLabel,
 }: {
   state: PublicGameState | ObserverGameState;
   observer?: boolean;
   selected?: Position;
   onSelect?: (position: Position) => void;
   itemArtwork?: Partial<Record<HazardType | ResourceType, string>>;
+  preview?: { intent: IntentCard; positions: Position[] };
+  route?: Position[];
+  target?: Position;
+  candidates?: Position[];
+  revealedPosition?: Position;
+  stageLabel?: string;
 }) {
   const observerState = observer && 'truth' in state ? state : undefined;
   const risks = new Map(observerState?.riskMap.map((cell) => [positionKey(cell.position), cell.risk]));
+  const previewPositions = new Set(preview?.positions.map(positionKey));
+  const routePositions = new Map(route?.map((position, index) => [positionKey(position), index]));
+  const candidatePositions = new Map(candidates?.map((position, index) => [positionKey(position), index]));
   return (
     <section className="map-panel panel">
       <div className="panel-title-row">
         <div>
-          <p className="eyebrow">5 × 8 LOGIC GRID</p>
+          <p className="eyebrow">{stageLabel ?? '5 × 8 LOGIC GRID'}</p>
           <h2>Jungle Map</h2>
         </div>
         <div className="map-legend"><span>◉ 探险车</span><span>▥ 基地</span><span>数字 = 周围危险数</span><span>斜纹 = 未探索</span></div>
@@ -61,6 +77,11 @@ export function JungleMap({
           const visibleHazard = tile.hazard ?? (observer ? truth?.hazard : undefined);
           const visibleItem = visibleHazard ?? visibleResource;
           const artwork = visibleItem ? itemArtwork?.[visibleItem] : undefined;
+          const key = positionKey(tile.position);
+          const routeIndex = routePositions.get(key);
+          const candidateIndex = candidatePositions.get(key);
+          const isTarget = target ? samePosition(tile.position, target) : false;
+          const isRevealing = revealedPosition ? samePosition(tile.position, revealedPosition) : false;
           const classNames = [
             'jungle-cell',
             tile.revealed ? 'revealed' : 'unknown',
@@ -71,6 +92,11 @@ export function JungleMap({
             tile.consumed ? 'consumed' : '',
             observer ? 'observer-cell' : '',
             onSelect ? 'selectable' : '',
+            previewPositions.has(key) ? `intent-preview preview-${preview?.intent.toLowerCase()}` : '',
+            routeIndex !== undefined ? 'projected-route' : '',
+            isTarget ? 'route-target' : '',
+            candidateIndex !== undefined ? `decision-candidate candidate-${candidateIndex + 1}` : '',
+            isRevealing ? 'cell-revealing' : '',
           ].filter(Boolean).join(' ');
             return (
               <button
@@ -92,6 +118,8 @@ export function JungleMap({
               ) : null}
               {isStart ? <span className="edge-label">BASE</span> : null}
               {observer && risk !== undefined ? <span className="risk-label">{Math.round(risk * 100)}%</span> : null}
+              {candidateIndex !== undefined ? <span className="candidate-label">{String.fromCharCode(65 + candidateIndex)}</span> : null}
+              {routeIndex !== undefined && routeIndex > 0 ? <span className="route-node">{isTarget ? 'TARGET' : routeIndex}</span> : null}
               </button>
             );
           })}

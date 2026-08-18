@@ -40,6 +40,62 @@ describe('game server', () => {
     expect(turn.json().plan.status).toBe('CONFIRMED');
   });
 
+  it('streams mock field movement, camera lock, and authoritative localization', async () => {
+    server = await buildServer({ roverMode: 'mock', mockStepMs: 2 });
+    const created = await server.inject({ method: 'POST', url: '/api/games', payload: { seed: 'mock-normal' } });
+    const game = created.json();
+    const turn = await server.inject({
+      method: 'POST',
+      url: `/api/games/${game.id}/intents`,
+      payload: { card: 'CAUTIOUS' },
+    });
+    expect(turn.json().plan.status).toBe('DISPATCHED');
+    expect(turn.json().state.fieldFeedback).toMatchObject({ source: 'MOCK', status: 'MOVING', progress: 0 });
+
+    await new Promise((resolve) => setTimeout(resolve, 30));
+    const settled = await server.inject({ method: 'GET', url: `/api/games/${game.id}` });
+    expect(settled.json().pendingPlan.status).toBe('CONFIRMED');
+    expect(settled.json().fieldFeedback).toMatchObject({ status: 'LOCKED', confidence: 0.98 });
+    expect(settled.json().round).toBe(1);
+  });
+
+  it('can inject a mock camera localization failure without advancing the round', async () => {
+    server = await buildServer({ roverMode: 'mock', mockStepMs: 2 });
+    await server.inject({ method: 'POST', url: '/api/operator/rover/mock', payload: { scenario: 'FAILURE' } });
+    const current = await server.inject({ method: 'GET', url: '/api/games/current' });
+    const game = current.json();
+    await server.inject({
+      method: 'POST',
+      url: `/api/games/${game.id}/intents`,
+      payload: { card: 'VERIFY' },
+    });
+
+    await new Promise((resolve) => setTimeout(resolve, 30));
+    const failed = await server.inject({ method: 'GET', url: `/api/games/${game.id}` });
+    expect(failed.json().pendingPlan.status).toBe('FAILED');
+    expect(failed.json().fieldFeedback).toMatchObject({ status: 'FAILED', cameraOnline: false, confidence: 0.24 });
+    expect(failed.json().round).toBe(0);
+  });
+
+  it('uses the mock camera position when the rover drifts away from the planned target', async () => {
+    server = await buildServer({ roverMode: 'mock', mockStepMs: 2 });
+    await server.inject({ method: 'POST', url: '/api/operator/rover/mock', payload: { scenario: 'DRIFT' } });
+    const current = await server.inject({ method: 'GET', url: '/api/games/current' });
+    const game = current.json();
+    const turn = await server.inject({
+      method: 'POST',
+      url: `/api/games/${game.id}/intents`,
+      payload: { card: 'CAUTIOUS' },
+    });
+    const target = turn.json().plan.target;
+
+    await new Promise((resolve) => setTimeout(resolve, 30));
+    const drifted = await server.inject({ method: 'GET', url: `/api/games/${game.id}` });
+    expect(drifted.json().pendingPlan.status).toBe('CONFIRMED');
+    expect(drifted.json().fieldFeedback).toMatchObject({ status: 'LOCKED', scenario: 'DRIFT', confidence: 0.86 });
+    expect(drifted.json().rover.position).not.toEqual(target);
+  });
+
   it('changes the active agent persona without restarting the game', async () => {
     server = await buildServer({ roverMode: 'virtual' });
     const current = await server.inject({ method: 'GET', url: '/api/games/current' });
