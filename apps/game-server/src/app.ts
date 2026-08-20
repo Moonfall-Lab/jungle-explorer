@@ -238,7 +238,7 @@ export async function buildServer(options: { logger?: boolean; roverMode?: Rover
       void runMockFieldTurn(state, plan, mockScenario);
     } else if (roverBridge) {
       try {
-        await dispatchPlan(roverBridge, state.id, plan);
+        await dispatchPlan(roverBridge, state.id, plan, state.rover.heading);
       } catch (error) {
         plan.status = 'FAILED';
         const message = error instanceof Error ? error.message : 'Unknown Rover Bridge error';

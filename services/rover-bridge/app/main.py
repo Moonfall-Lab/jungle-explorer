@@ -12,7 +12,14 @@ import urllib.request
 from fastapi import FastAPI, Header, HTTPException, Response
 from pydantic import BaseModel, Field
 
-from .domain import BridgeValidationError, commands_to_sequence, sdk_cell_to_position, sdk_heading_to_cardinal
+from .domain import (
+    BridgeValidationError,
+    cardinal_to_sdk_heading,
+    commands_to_sequence,
+    game_position_to_sdk_cell,
+    sdk_cell_to_position,
+    sdk_heading_to_cardinal,
+)
 
 app = FastAPI(title="Jungle Explorer Rover Bridge", version="0.1.0")
 
@@ -23,12 +30,18 @@ class MotionCommand(BaseModel):
     degrees: Literal[90] | None = None
 
 
+class GridPosition(BaseModel):
+    row: int = Field(ge=0, le=4)
+    col: int = Field(ge=0, le=7)
+
+
 class RoverConfig(BaseModel):
     ip: str = Field(min_length=1)
     port: int = Field(default=8888, ge=1, le=65535)
     localizer_url: str = "http://127.0.0.1:8098"
     tag_id: int = Field(default=0, ge=0)
     tag_gap_cm: float = Field(default=0, ge=0)
+    rover_center_offset_cm: float = Field(default=0, ge=-10, le=10)
     cell_cm: float = Field(default=6.68, gt=0)
     straight_speed: int = Field(default=60, ge=1, le=100)
     straight_cm_s: float = Field(default=8.91, gt=0)
@@ -39,14 +52,38 @@ class RoverConfig(BaseModel):
     localization_timeout_sec: float = Field(default=5, gt=0, le=60)
     localization_samples: int = Field(default=3, ge=1, le=20)
     localization_mode: Literal["required", "disabled"] = "required"
-    grid_mapping: Literal["landscape", "legacy_transposed"] = "landscape"
+    grid_mapping: Literal["row_letter", "landscape", "legacy_transposed"] = "landscape"
     heading_offset_deg: float = 0
+    closed_loop_enabled: bool = False
+    position_tolerance_cm: float = Field(default=0.90, gt=0, le=3.34)
+    heading_tolerance_deg: float = Field(default=10, gt=0, le=30)
+    correction_drive_speed: int = Field(default=60, ge=1, le=100)
+    correction_turn_speed: int = Field(default=40, ge=1, le=100)
+    correction_min_pulse_sec: float = Field(default=0.10, gt=0, le=1)
+    correction_max_drive_pulse_sec: float = Field(default=0.14, gt=0, le=2)
+    correction_max_turn_pulse_sec: float = Field(default=0.30, gt=0, le=2)
+    correction_settle_sec: float = Field(default=0.35, ge=0, le=3)
+    correction_samples: int = Field(default=5, ge=1, le=20)
+    correction_max_iterations: int = Field(default=24, ge=1, le=40)
+
+
+class MissionSegment(BaseModel):
+    commands: list[MotionCommand] = Field(min_length=1)
+    target: GridPosition
+    target_heading: Literal["NORTH", "EAST", "SOUTH", "WEST"] = Field(
+        alias="targetHeading"
+    )
 
 
 class MissionRequest(BaseModel):
     plan_id: str = Field(alias="planId", min_length=1)
     game_id: str = Field(alias="gameId", min_length=1)
     commands: list[MotionCommand] = Field(min_length=1)
+    target: GridPosition | None = None
+    target_heading: Literal["NORTH", "EAST", "SOUTH", "WEST"] | None = Field(
+        default=None, alias="targetHeading"
+    )
+    segments: list[MissionSegment] = Field(default_factory=list)
     rover: RoverConfig
     callback_url: str | None = Field(default=None, alias="callbackUrl")
 
@@ -122,7 +159,7 @@ def post_callback(record: MissionRecord, callback_url: str | None) -> None:
 
 def run_mission(record: MissionRecord, request: MissionRequest) -> None:
     try:
-        from rover_agent import MotionConfig, RoverSDK
+        from rover_agent import ClosedLoopConfig, MotionConfig, RoverSDK
 
         motion = MotionConfig(
             cell_cm=request.rover.cell_cm,
@@ -139,6 +176,7 @@ def run_mission(record: MissionRecord, request: MissionRequest) -> None:
             localizer_url=request.rover.localizer_url,
             rover_tag_id=request.rover.tag_id,
             tag_gap_cm=request.rover.tag_gap_cm,
+            rover_center_offset_cm=request.rover.rover_center_offset_cm,
             motion=motion,
         )
         with LOCK:
@@ -150,11 +188,64 @@ def run_mission(record: MissionRecord, request: MissionRequest) -> None:
                     record.sdk_telemetry = result.to_dict()
                     record.status = "MOTION_COMPLETED"
             else:
-                result = sdk.execute(
-                    record.sequence,
-                    localization_timeout_sec=request.rover.localization_timeout_sec,
-                    localization_samples=request.rover.localization_samples,
+                closed_loop = ClosedLoopConfig(
+                    position_tolerance_cm=request.rover.position_tolerance_cm,
+                    heading_tolerance_deg=request.rover.heading_tolerance_deg,
+                    drive_speed=request.rover.correction_drive_speed,
+                    turn_speed=request.rover.correction_turn_speed,
+                    min_pulse_sec=request.rover.correction_min_pulse_sec,
+                    max_drive_pulse_sec=request.rover.correction_max_drive_pulse_sec,
+                    max_turn_pulse_sec=request.rover.correction_max_turn_pulse_sec,
+                    settle_sec=request.rover.correction_settle_sec,
+                    sample_count=request.rover.correction_samples,
+                    max_iterations=request.rover.correction_max_iterations,
                 )
+                segment_results = []
+                if request.rover.closed_loop_enabled and request.segments:
+                    for segment in request.segments:
+                        segment_sequence = commands_to_sequence([
+                            command.model_dump(exclude_none=True)
+                            for command in segment.commands
+                        ])
+                        result = sdk.execute(
+                            segment_sequence,
+                            localization_timeout_sec=request.rover.localization_timeout_sec,
+                            localization_samples=request.rover.localization_samples,
+                            target_cell=game_position_to_sdk_cell(
+                                segment.target.row,
+                                segment.target.col,
+                                request.rover.grid_mapping,
+                            ),
+                            target_heading_deg=cardinal_to_sdk_heading(
+                                segment.target_heading,
+                                request.rover.heading_offset_deg,
+                            ),
+                            closed_loop=closed_loop,
+                        )
+                        segment_results.append(result.to_dict())
+                else:
+                    target_cell = None
+                    target_heading_deg = None
+                    if request.rover.closed_loop_enabled and request.target is not None:
+                        target_cell = game_position_to_sdk_cell(
+                            request.target.row,
+                            request.target.col,
+                            request.rover.grid_mapping,
+                        )
+                        if request.target_heading is not None:
+                            target_heading_deg = cardinal_to_sdk_heading(
+                                request.target_heading,
+                                request.rover.heading_offset_deg,
+                            )
+                    result = sdk.execute(
+                        record.sequence,
+                        localization_timeout_sec=request.rover.localization_timeout_sec,
+                        localization_samples=request.rover.localization_samples,
+                        target_cell=target_cell,
+                        target_heading_deg=target_heading_deg,
+                        closed_loop=closed_loop if target_cell is not None else None,
+                    )
+                    segment_results.append(result.to_dict())
                 sdk_position = result.position.to_dict()
                 if not sdk_position.get("in_grid") or not sdk_position.get("cell"):
                     raise BridgeValidationError("SDK returned an out-of-grid position")
@@ -164,10 +255,20 @@ def run_mission(record: MissionRecord, request: MissionRequest) -> None:
                 heading = sdk_heading_to_cardinal(
                     float(sdk_position["heading_deg"]), request.rover.heading_offset_deg
                 )
+                telemetry = result.to_dict()
+                telemetry["sequence"] = record.sequence
+                telemetry["action_count"] = sum(
+                    int(item["action_count"]) for item in segment_results
+                )
+                telemetry["movement_duration_sec"] = round(
+                    sum(float(item["movement_duration_sec"]) for item in segment_results),
+                    3,
+                )
+                telemetry["segments"] = segment_results
                 with LOCK:
                     record.position = position
                     record.heading = heading
-                    record.sdk_telemetry = result.to_dict()
+                    record.sdk_telemetry = telemetry
                     record.status = "COMPLETED"
         finally:
             sdk.close()

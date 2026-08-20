@@ -11,6 +11,7 @@ const settings: RoverBridgeSettings = {
   localizerUrl: 'http://127.0.0.1:8098',
   tagId: 0,
   tagGapCm: 0,
+  roverCenterOffsetCm: 0.67,
   cellCm: 6.68,
   straightSpeed: 60,
   straightCmS: 8.91,
@@ -21,6 +22,17 @@ const settings: RoverBridgeSettings = {
   localizationMode: 'disabled',
   gridMapping: 'landscape',
   headingOffsetDeg: 0,
+  closedLoopEnabled: true,
+  positionToleranceCm: 0.90,
+  headingToleranceDeg: 10,
+  correctionDriveSpeed: 60,
+  correctionTurnSpeed: 40,
+  correctionMinPulseSec: 0.10,
+  correctionMaxDrivePulseSec: 0.14,
+  correctionMaxTurnPulseSec: 0.30,
+  correctionSettleSec: 0.35,
+  correctionSamples: 5,
+  correctionMaxIterations: 24,
 };
 
 const plan: ActionPlan = {
@@ -40,7 +52,7 @@ describe('rover bridge client', () => {
   it('dispatches the exact plan, calibration and callback contract', async () => {
     const request = vi.fn().mockResolvedValue(new Response('{}', { status: 202 }));
     vi.stubGlobal('fetch', request);
-    await dispatchPlan(settings, 'game-1', plan);
+    await dispatchPlan(settings, 'game-1', plan, 'EAST');
     expect(request).toHaveBeenCalledOnce();
     const [url, init] = request.mock.calls[0] as [string, RequestInit];
     expect(url).toBe('http://127.0.0.1:8200/missions');
@@ -49,11 +61,22 @@ describe('rover bridge client', () => {
       planId: 'plan-1',
       gameId: 'game-1',
       commands: [{ action: 'FORWARD', cells: 1 }],
+      target: { row: 2, col: 1 },
+      targetHeading: 'EAST',
+      segments: [{
+        commands: [{ action: 'FORWARD', cells: 1 }],
+        target: { row: 2, col: 1 },
+        targetHeading: 'EAST',
+      }],
       rover: {
         ip: '192.168.20.155',
         cell_cm: 6.68,
+        rover_center_offset_cm: 0.67,
         localization_mode: 'disabled',
         grid_mapping: 'landscape',
+        closed_loop_enabled: true,
+        position_tolerance_cm: 0.90,
+        heading_tolerance_deg: 10,
       },
       callbackUrl: 'http://127.0.0.1:3000/api/games/game-1/rover-results',
     });

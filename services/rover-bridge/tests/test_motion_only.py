@@ -74,6 +74,7 @@ class MotionOnlyBridgeTest(unittest.TestCase):
             "F1 L",
         )
         fake_module = types.ModuleType("rover_agent")
+        fake_module.ClosedLoopConfig = lambda **kwargs: kwargs
         fake_module.MotionConfig = lambda **kwargs: kwargs
         fake_module.RoverSDK = FakeSDK
 

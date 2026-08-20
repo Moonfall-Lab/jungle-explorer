@@ -36,6 +36,8 @@ export function CardScanner({
   const onScanRef = useRef(onScan);
   const disabledRef = useRef(disabled);
   const lastScanRef = useRef({ value: '', at: 0 });
+  const armedRef = useRef(true);
+  const clearSinceRef = useRef<number | undefined>(undefined);
   const [enabled, setEnabled] = useState(false);
   const [message, setMessage] = useState('Mac 摄像头未开启');
   const [manualValue, setManualValue] = useState('');
@@ -79,6 +81,8 @@ export function CardScanner({
         await videoRef.current.play();
       }
       setEnabled(true);
+      armedRef.current = true;
+      clearSinceRef.current = undefined;
       const Detector = (window as unknown as { BarcodeDetector?: BarcodeDetectorConstructor }).BarcodeDetector;
       if (!Detector) {
         setMessage('当前浏览器不支持原生二维码识别，请使用手动输入');
@@ -92,13 +96,22 @@ export function CardScanner({
           lastDetectionAt = time;
           try {
             const codes = await detector.detect(videoRef.current);
-            const known = codes.find((code) => parseIntentCardPayload(code.rawValue));
-            if (known && (
-              lastScanRef.current.value !== known.rawValue
-              || Date.now() - lastScanRef.current.at > 2500
-            )) {
+            const knownCodes = codes.filter((code) => parseIntentCardPayload(code.rawValue));
+            const known = knownCodes[0];
+            if (knownCodes.length === 0) {
+              clearSinceRef.current ??= Date.now();
+              if (!armedRef.current && Date.now() - clearSinceRef.current >= 800) {
+                armedRef.current = true;
+                setMessage('正在识别卡牌二维码');
+              }
+            } else {
+              clearSinceRef.current = undefined;
+            }
+            if (known && armedRef.current) {
+              armedRef.current = false;
               lastScanRef.current = { value: known.rawValue, at: Date.now() };
               emit(known.rawValue);
+              setMessage(`识别成功：${parseIntentCardPayload(known.rawValue)}。请移开卡牌后再出下一张`);
             }
           } catch {
             setMessage('二维码识别器暂时不可用，请使用手动输入');

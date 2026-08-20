@@ -37,6 +37,16 @@ class RoverBridgeDomainTest(unittest.TestCase):
             {"row": 2, "col": 3},
         )
 
+    def test_maps_product_row_letter_cells(self):
+        self.assertEqual(
+            domain.sdk_cell_to_position("D-3", "row_letter"),
+            {"row": 3, "col": 2},
+        )
+        self.assertEqual(
+            domain.sdk_cell_to_position("E-8", "row_letter"),
+            {"row": 4, "col": 7},
+        )
+
     def test_rejects_cells_outside_selected_mapping(self):
         with self.assertRaises(domain.BridgeValidationError):
             domain.sdk_cell_to_position("H-5", "legacy_transposed")
@@ -48,6 +58,19 @@ class RoverBridgeDomainTest(unittest.TestCase):
         self.assertEqual(domain.sdk_heading_to_cardinal(90), "SOUTH")
         self.assertEqual(domain.sdk_heading_to_cardinal(180), "WEST")
         self.assertEqual(domain.sdk_heading_to_cardinal(-90), "NORTH")
+
+    def test_maps_game_target_back_to_sdk_cell(self):
+        self.assertEqual(domain.game_position_to_sdk_cell(2, 3), "D-3")
+        self.assertEqual(domain.game_position_to_sdk_cell(4, 7), "H-5")
+        self.assertEqual(
+            domain.game_position_to_sdk_cell(2, 3, "row_letter"), "C-4"
+        )
+
+    def test_maps_cardinal_heading_to_raw_sdk_angle(self):
+        self.assertEqual(domain.cardinal_to_sdk_heading("EAST"), 0)
+        self.assertEqual(domain.cardinal_to_sdk_heading("SOUTH"), 90)
+        self.assertEqual(domain.cardinal_to_sdk_heading("NORTH"), -90)
+        self.assertEqual(domain.cardinal_to_sdk_heading("EAST", 10), -10)
 
 
 if __name__ == "__main__":
